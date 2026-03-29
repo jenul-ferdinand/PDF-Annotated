@@ -14,6 +14,17 @@ This document explains how to develop, test, and release the **Modern PDF Previe
 bun install
 ```
 
+### Reference Submodule
+This repository includes `references/vscode-pdf` as a Git submodule for implementation reference.
+
+Initialize it after cloning if needed:
+
+```bash
+git submodule update --init --recursive
+```
+
+Use it to compare VS Code-facing behavior such as `CustomEditorProvider`, Webview wiring, and message flow. Do not treat it as a runtime dependency of this extension.
+
 ## 2. Extension Architecture
 
 The extension is built for two targets:
@@ -21,6 +32,8 @@ The extension is built for two targets:
 - **Web (Web Worker)**: Uses `dist/extension.browser.js` for support on vscode.dev and GitHub Codespaces.
 
 The `package.json` specifies these via `main` and `browser` fields respectively.
+
+For VS Code integration reference, compare our implementation in `src/providers/editorProvider.js` with `references/vscode-pdf/src/pdf-viewer-provider.ts`.
 
 ## 3. Build & Development
 
@@ -89,4 +102,27 @@ The project includes a helper script `scripts/publish.sh` that publishes to both
 **Command**:
 ```bash
 bun run deploy
+```
+
+### Direct VSIX Publishing
+For Bun-managed workspaces, `vsce` and `ovsx` dependency detection can disagree with the installed `node_modules` tree. When that happens, publish the already-built VSIX directly instead of asking the publisher tool to inspect dependencies.
+
+Build the package first:
+
+```bash
+bun run package
+```
+
+Publish to VS Code Marketplace from the generated VSIX:
+
+```bash
+set -a; source .env
+bunx vsce publish -p "$VSCE_PAT" -i ./modern-pdf-preview-<version>.vsix --no-dependencies
+```
+
+Publish to Open VSX from the generated VSIX:
+
+```bash
+set -a; source .env
+bunx ovsx publish -p "$OVSX_TOKEN" -i ./modern-pdf-preview-<version>.vsix
 ```

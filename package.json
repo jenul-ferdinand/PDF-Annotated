@@ -16,7 +16,7 @@
   "repository": {
     "url": "https://github.com/chocolatedesue/vscode-pdf"
   },
-  "version": "1.5.5",
+  "version": "1.5.6",
   "browser": "./dist/extension.browser.js",
   "main": "./dist/extension.node.js",
   "extensionKind": [
@@ -119,22 +119,22 @@
     "test-web-headless": "vscode-test-web --extensionDevelopmentPath=. --headless ."
   },
   "devDependencies": {
-    "@actions/core": "^1.11.1",
-    "@embedpdf/svelte-pdf-viewer": "^2.2.0",
+    "@actions/core": "^3.0.0",
+    "@embedpdf/svelte-pdf-viewer": "^2.10.1",
     "@types/vscode": "^1.75.0",
-    "@vscode/test-web": "^0.0.78",
+    "@vscode/test-web": "^0.0.80",
     "@vscode/vsce": "^3.7.1",
-    "css-loader": "^7.1.2",
-    "ovsx": "^0.10.8",
+    "css-loader": "^7.1.4",
+    "ovsx": "^0.10.10",
     "style-loader": "^4.0.0",
-    "svelte": "^5.46.4",
+    "svelte": "^5.55.0",
     "svelte-loader": "^3.2.4",
-    "webpack": "^5.104.1",
-    "webpack-cli": "^6.0.1"
+    "webpack": "^5.105.4",
+    "webpack-cli": "^7.0.2"
   },
   "dependencies": {
-    "@embedpdf/core": "^2.2.0",
-    "@embedpdf/plugin-document-manager": "^2.2.0",
-    "@embedpdf/plugin-render": "^2.2.0"
+    "@embedpdf/core": "^2.10.1",
+    "@embedpdf/plugin-document-manager": "^2.10.1",
+    "@embedpdf/plugin-render": "^2.10.1"
   }
 }

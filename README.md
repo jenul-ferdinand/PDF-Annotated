@@ -61,10 +61,15 @@ Customize the initial viewer state in your VS Code settings:
 ### 🔍 Search
 Search for **"Modern PDF Preview"** in the VS Code Extensions panel or use the ID: `chocolatedesue.modern-pdf-preview`.
 
+### 🛒 Marketplaces
+- **VS Code Marketplace**: [chocolatedesue.modern-pdf-preview](https://marketplace.visualstudio.com/items?itemName=chocolatedesue.modern-pdf-preview)
+- **Open VSX Registry**: [chocolatedesue.modern-pdf-preview](https://open-vsx.org/extension/chocolatedesue/modern-pdf-preview)
+
 ## 📚 Documentation
 
 - **[Technical Architecture](docs/ARCHITECTURE.md)**: How WASM and Web Workers are used.
 - **[Development Guide](docs/DEVELOPMENT.md)**: Setup, build, testing, and release procedures.
+- **[Reference Repository Guide](docs/REFERENCE.md)**: How to use the `references/vscode-pdf` submodule for VS Code integration comparisons.
 - **[API Reference](docs/API.md)**: Preview PDFs from your own extension.
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)**: Solutions for common issues.
 
@@ -73,6 +78,7 @@ Search for **"Modern PDF Preview"** in the VS Code Extensions panel or use the I
 This project is an evolution of [vscode-pdf-viewer](https://github.com/AdamRaichu/vscode-pdf-viewer) and uses:
 - **[embed-pdf-viewer](https://github.com/embedpdf/embed-pdf-viewer)**: Core UI component.
 - **[PDFium WASM](https://github.com/bblanchon/pdfium-binaries)**: High-performance rendering engine (Apache 2.0 / BSD 3-Clause).
+- **[mathematic-inc/vscode-pdf](https://github.com/mathematic-inc/vscode-pdf)**: Included as a reference submodule for VS Code custom editor and Webview interaction patterns.
 
 License: **MIT**
 
