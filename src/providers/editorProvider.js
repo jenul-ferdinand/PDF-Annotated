@@ -2,6 +2,7 @@ import Logger from "../services/logger";
 import { VIEW_TYPE, WEBVIEW_OPTIONS, MEDIA_FILES } from "../constants/index.js";
 import { getPdfConfiguration } from "../managers/configManager";
 import { activeEditors } from "../managers/editorManager";
+import { ViewStateManager } from "../managers/viewStateManager";
 import { PDFDoc } from "../models/document";
 import { getWebviewHtml, getErrorHtml } from "./webviewHtmlBuilder";
 
@@ -93,8 +94,21 @@ export default class PDFEdit {
    */
   constructor(context) {
     this.context = context;
+    this.viewStateManager = new ViewStateManager(context);
     this._onDidChangeCustomDocument = new vscode.EventEmitter();
     this.onDidChangeCustomDocument = this._onDidChangeCustomDocument.event;
+  }
+
+  #getDataProviderUri(dataProvider) {
+    if (dataProvider?.uri) {
+      return dataProvider.uri;
+    }
+
+    if (typeof dataProvider?.getRawData === "function") {
+      return vscode.Uri.parse(`pdf-api:///${encodeURIComponent(dataProvider.name)}`);
+    }
+
+    return null;
   }
 
   /**
@@ -180,8 +194,54 @@ export default class PDFEdit {
    */
   async #writeFileData(uri, data) {
     const buffer = data instanceof Uint8Array ? data : new Uint8Array(data);
+    const editorEntry = activeEditors.get(uri.toString());
+    if (editorEntry?.dataProvider instanceof PDFDoc) {
+      editorEntry.dataProvider.markPendingWrite();
+    }
     Logger.log(`[Save] Writing ${buffer.byteLength} bytes to ${uri.fsPath}`);
     await vscode.workspace.fs.writeFile(uri, buffer);
+  }
+
+  async #handleOpenLink(message, documentUri) {
+    const target = message.target;
+    const result = message.result;
+
+    try {
+      if (result?.outcome === "uri" && result.uri) {
+        await vscode.env.openExternal(vscode.Uri.parse(result.uri));
+        return;
+      }
+
+      if (!target || target.type !== "action") {
+        return;
+      }
+
+      if (target.action.type === 3 && target.action.uri) {
+        await vscode.env.openExternal(vscode.Uri.parse(target.action.uri));
+        return;
+      }
+
+      if (target.action.type !== 4 || !target.action.path || !documentUri) {
+        return;
+      }
+
+      let resourceUri;
+      if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(target.action.path)) {
+        resourceUri = vscode.Uri.parse(target.action.path);
+      } else if (target.action.path.startsWith("/")) {
+        resourceUri = vscode.Uri.file(target.action.path);
+      } else {
+        const lastSlash = documentUri.path.lastIndexOf("/");
+        const baseUri = documentUri.with({
+          path: lastSlash > 0 ? documentUri.path.slice(0, lastSlash) : "/",
+        });
+        resourceUri = vscode.Uri.joinPath(baseUri, target.action.path);
+      }
+
+      await vscode.commands.executeCommand("vscode.open", resourceUri);
+    } catch (error) {
+      Logger.log(`[Open Link] Failed to open link: ${error}`);
+    }
   }
 
   /**
@@ -198,9 +258,8 @@ export default class PDFEdit {
 
     // Notify webview to reload
     if (editorEntry && editorEntry.panel) {
-      // Re-initialize the webview with fresh data
-      // This will trigger 'ready' -> handleWebviewReady -> getFileData (fresh)
-      await this.setupWebview(document, editorEntry.panel);
+      await this.viewStateManager.flush(uriString);
+      await this.#postViewerMessage(document, editorEntry.panel, "reload");
     }
   }
 
@@ -229,12 +288,45 @@ export default class PDFEdit {
     const uriString = document.uri.toString();
     Logger.log(`Resolving Custom Editor for: ${uriString}`);
 
+    const existingEntry = activeEditors.get(uriString);
+
     // Register editor instance
     activeEditors.set(uriString, {
       panel,
       resolveSave: null,
-      messageDisposable: null // Will be set in setupWebview
+      messageDisposable: existingEntry?.messageDisposable || null,
+      changeDisposable: existingEntry?.changeDisposable || null,
+      disposeDisposable: existingEntry?.disposeDisposable || null,
+      lastViewState: existingEntry?.lastViewState || this.viewStateManager.getPersisted(uriString),
+      dataProvider: document
     });
+
+    const changeEntry = activeEditors.get(uriString);
+    if (typeof document.onDidChange === "function" && !changeEntry?.changeDisposable) {
+      changeEntry.changeDisposable = document.onDidChange(async () => {
+        Logger.log(`[Reload] Posting reload for ${uriString}`);
+        const entry = activeEditors.get(uriString);
+        if (entry?.panel) {
+          await this.viewStateManager.flush(uriString);
+          await this.#postViewerMessage(document, entry.panel, "reload");
+        }
+      });
+    }
+
+    if (!changeEntry?.disposeDisposable) {
+      changeEntry.disposeDisposable = panel.onDidDispose(() => {
+        void this.viewStateManager.flush(uriString);
+        const entry = activeEditors.get(uriString);
+        if (entry?.messageDisposable) {
+          entry.messageDisposable.dispose();
+        }
+        if (entry?.changeDisposable) {
+          entry.changeDisposable.dispose();
+        }
+        activeEditors.delete(uriString);
+        Logger.log(`Webview panel disposed for ${uriString}`);
+      });
+    }
 
     // Check if webview is already set up (to prevent reinitialization on tab switch)
     if (panel.webview.html && panel.webview.html.length > 0) {
@@ -267,10 +359,9 @@ export default class PDFEdit {
     const extUri = this.context.extensionUri;
     const mediaUri = vscode.Uri.joinPath(extUri, "media");
 
-    const uri = dataProvider.uri || (typeof dataProvider.getRawData === 'function' ? vscode.Uri.parse(`pdf-api:///${encodeURIComponent(dataProvider.name)}`) : null);
+    const uri = this.#getDataProviderUri(dataProvider);
     const uriString = uri ? uri.toString() : 'unknown-uri';
 
-    const isWeb = vscode.env.uiKind === vscode.UIKind.Web;
     let localResourceRoots = [mediaUri];
 
     if (uri && uri.scheme !== 'pdf-api') {
@@ -310,14 +401,6 @@ export default class PDFEdit {
       // Inject variables into HTML
       panel.webview.html = getWebviewHtml(panel.webview, htmlContent, webviewBundleUri, mediaUri, wasmUri);
 
-      // Prepare init message
-      const config = getPdfConfiguration();
-      const msg = {
-        command: "preview",
-        wasmUri: wasmUri.toString(true),
-        config: config
-      };
-
       // Ensure old message listeners are cleaned up if re-initializing
       const existingEntry = activeEditors.get(uriString);
       if (existingEntry && existingEntry.messageDisposable) {
@@ -327,11 +410,20 @@ export default class PDFEdit {
       // Message Handling
       const messageDisposable = panel.webview.onDidReceiveMessage(async (message) => {
         if (message.command === 'ready') {
-          await this.handleWebviewReady(dataProvider, panel, msg);
+          await this.handleWebviewReady(dataProvider, panel);
         } else if (message.command === 'log') {
           Logger.log(`[Webview] ${message.message}`);
         } else if (message.command === 'error') {
           Logger.log(`[Webview Error] ${message.error}`);
+        } else if (message.command === 'viewer-state-changed') {
+          this.viewStateManager.updateHot(uriString, message.viewState || null);
+          if (message.flush) {
+            await this.viewStateManager.flush(uriString);
+          } else {
+            this.viewStateManager.scheduleCheckpoint(uriString);
+          }
+        } else if (message.command === "open-link") {
+          await this.#handleOpenLink(message, uri);
         } else if (message.command === 'dirty') {
           // Mark document as dirty
           Logger.log(`[Webview] Document marked dirty`);
@@ -377,17 +469,11 @@ export default class PDFEdit {
       activeEditors.set(uriString, {
         panel,
         resolveSave: existingEntry ? existingEntry.resolveSave : null,
-        messageDisposable
-      });
-
-      // Cleanup when panel is disposed
-      panel.onDidDispose(() => {
-        const entry = activeEditors.get(uriString);
-        if (entry && entry.messageDisposable) {
-          entry.messageDisposable.dispose();
-        }
-        activeEditors.delete(uriString);
-        Logger.log(`Webview panel disposed for ${uriString}`);
+        messageDisposable,
+        changeDisposable: existingEntry ? existingEntry.changeDisposable : null,
+        disposeDisposable: existingEntry ? existingEntry.disposeDisposable : null,
+        lastViewState: existingEntry ? existingEntry.lastViewState : this.viewStateManager.getPersisted(uriString),
+        dataProvider
       });
 
       const duration = Date.now() - startTime;
@@ -442,45 +528,59 @@ export default class PDFEdit {
    * Handles the 'ready' message from the webview.
    * @param {PDFDoc} dataProvider
    * @param {vscode.WebviewPanel} panel
-   * @param {Object} initMsg
    */
-  async handleWebviewReady(dataProvider, panel, initMsg) {
+  async handleWebviewReady(dataProvider, panel) {
     const isWeb = vscode.env.uiKind === vscode.UIKind.Web;
     Logger.log(`[Webview Ready] Environment: ${isWeb ? "Web" : "Desktop"} (UIKind: ${vscode.env.uiKind})`);
+    await this.#postViewerMessage(dataProvider, panel, "preview");
+  }
 
-    // Create a new message object to avoid mutating the original initMsg
-    // which is captured in the closure of the message handler
-    const msg = { ...initMsg };
+  async #postViewerMessage(dataProvider, panel, command) {
+    const uri = this.#getDataProviderUri(dataProvider);
+    const uriString = uri ? uri.toString() : "unknown-uri";
+    const extUri = this.context.extensionUri;
+    const mediaUri = vscode.Uri.joinPath(extUri, "media");
+    const wasmUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, MEDIA_FILES.WASM));
+
+    const msg = {
+      command,
+      documentKey: uriString,
+      wasmUri: wasmUri.toString(true),
+      config: getPdfConfiguration(),
+      viewState: this.viewStateManager.getPersisted(uriString) || activeEditors.get(uriString)?.lastViewState || null,
+    };
+
+    Logger.log(`[View State] Sending ${command} for ${uriString}: ${JSON.stringify(msg.viewState)}`);
 
     if (dataProvider.uri) {
-      Logger.log(`Strategy: URI Mode (Standard)`);
+      Logger.log(`Strategy: URI Mode (${command})`);
       msg.pdfUri = panel.webview.asWebviewUri(dataProvider.uri).toString(true);
       panel.webview.postMessage(msg);
-    } else {
-      Logger.log("Strategy: Data Injection Mode (Web/Fallback)");
-      try {
-        let data;
-        if (dataProvider instanceof PDFDoc) {
-          data = await dataProvider.getFileData();
-        } else if (typeof dataProvider.getRawData === 'function') {
-          data = dataProvider.getRawData();
-        } else {
-          data = await dataProvider.getFileData();
-        }
+      return;
+    }
 
-        msg.data = data;
+    Logger.log(`Strategy: Data Injection Mode (${command})`);
 
-        // Note: We DO NOT use transferables here because 'data' might be coming from the global cacheManager.
-        // Transferring the buffer would make it unusable for other editor instances or subsequent reads.
-        // Standard cloning via postMessage is safer for shared cache data.
-        panel.webview.postMessage(msg);
-      } catch (err) {
-        Logger.log(`Error loading file data: ${err}`);
-        panel.webview.postMessage({
-          command: 'error',
-          error: err.message || String(err)
-        });
+    try {
+      let data;
+      if (dataProvider instanceof PDFDoc) {
+        data = await dataProvider.getFileData();
+      } else if (typeof dataProvider.getRawData === 'function') {
+        data = dataProvider.getRawData();
+      } else {
+        data = await dataProvider.getFileData();
       }
+
+      msg.data = data;
+
+      // Note: We do not use transferables here because 'data' may come from shared caches.
+      panel.webview.postMessage(msg);
+    } catch (err) {
+      Logger.log(`Error loading file data: ${err}`);
+      panel.webview.postMessage({
+        command: 'error',
+        error: err.message || String(err)
+      });
     }
   }
 

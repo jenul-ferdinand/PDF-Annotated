@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.7] - 2026-03-29
+
+### Improved
+- **Viewer Restore**: Reduced restore-time persistence churn by deduplicating checkpoints, delaying post-restore flushes, and moving more viewer defaults into startup configuration.
+- **Code Structure**: Extracted view state persistence and viewer runtime logic into dedicated modules for easier maintenance and future extension.
+
 ## [1.5.6] - 2026-03-29
 
 ### Updated

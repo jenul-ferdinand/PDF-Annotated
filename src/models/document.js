@@ -11,14 +11,84 @@ export class PDFDoc {
   constructor(uri) {
     this._uri = uri;
     this._inFlightRead = null;
+    this._disposables = [];
+    this._ignoreChangesUntil = 0;
+    this._onDidDelete = new vscode.EventEmitter();
+    this._onDidChange = new vscode.EventEmitter();
+
+    this.onDidDelete = this._onDidDelete.event;
+    this.onDidChange = this._onDidChange.event;
+
+    this.#registerWatcher();
   }
 
   dispose() {
     this._inFlightRead = null;
+    this._onDidDelete.fire(this.uri);
+    this._disposeAll();
+  }
+
+  #disposeAll() {
+    for (const disposable of this._disposables) {
+      try {
+        disposable.dispose();
+      } catch (e) {
+        Logger.log(`[Watcher] Failed to dispose watcher: ${e}`);
+      }
+    }
+    this._disposables = [];
+  }
+
+  #registerWatcher() {
+    try {
+      const lastSlash = this.uri.path.lastIndexOf("/");
+      const baseUri = this.uri.with({
+        path: lastSlash > 0 ? this.uri.path.slice(0, lastSlash) : "/",
+      });
+      const fileName = this.uri.path.slice(lastSlash + 1);
+
+      if (!fileName) {
+        return;
+      }
+
+      const watcher = vscode.workspace.createFileSystemWatcher(
+        new vscode.RelativePattern(baseUri, fileName)
+      );
+
+      const onChange = (changedUri) => {
+        if (changedUri.toString() === this.uri.toString()) {
+          if (Date.now() < this._ignoreChangesUntil) {
+            Logger.log(`[Watcher] Ignoring self-triggered change for ${this.uri.toString()}`);
+            return;
+          }
+          Logger.log(`[Watcher] External change detected for ${this.uri.toString()}`);
+          this._onDidChange.fire(changedUri);
+        }
+      };
+
+      this._disposables.push(
+        watcher,
+        watcher.onDidChange(onChange),
+        watcher.onDidCreate(onChange),
+        watcher.onDidDelete((deletedUri) => {
+          if (deletedUri.toString() === this.uri.toString()) {
+            this._onDidDelete.fire(deletedUri);
+          }
+        }),
+        this._onDidDelete,
+        this._onDidChange
+      );
+    } catch (e) {
+      Logger.log(`[Watcher] Failed to create watcher for ${this.uri.toString()}: ${e}`);
+    }
   }
 
   get uri() {
     return this._uri;
+  }
+
+  markPendingWrite(durationMs = 1500) {
+    this._ignoreChangesUntil = Date.now() + durationMs;
   }
 
   /**

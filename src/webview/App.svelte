@@ -16,6 +16,9 @@
       case "preview":
         pdfState.setPreview(message);
         break;
+      case "reload":
+        pdfState.setPreview(message, { forceReload: true });
+        break;
       case "save":
         await pdfState.handleSave(message);
         break;
@@ -81,7 +84,9 @@
   {/if}
 
   {#if pdfState.pdfSrc}
-    <PdfViewer />
+    {#key pdfState.viewerKey}
+      <PdfViewer />
+    {/key}
   {/if}
 </main>
 

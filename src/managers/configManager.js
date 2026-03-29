@@ -39,6 +39,8 @@ export function getPdfConfiguration() {
     return {
         zoomLevel: zoomLevel,
         spreadMode: spreadMap[spreadMode] || spreadMode,
+        scrollStrategy: 'vertical',
+        rotation: 0,
         tabBar: tabBar,
         initialDocuments: [],
     };
