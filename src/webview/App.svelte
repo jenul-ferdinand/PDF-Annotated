@@ -57,7 +57,7 @@
     window.addEventListener("message", handleMessage);
     vscodeService.postMessage({ command: "ready" });
 
-    // Note: We intentionally do NOT restore pdfUri from old state here
+    // We do not restore pdfUri from persisted webview state here
     // because asWebviewUri() generates URIs with session-specific tokens
     // that become invalid after VSCode restarts. The extension will send
     // a fresh URI in response to the 'ready' message above.

@@ -72,7 +72,7 @@ export class ViewStateManager {
       return;
     }
 
-    Logger.log(`[View State] Checkpointing for ${uriString}: ${JSON.stringify(normalizedViewState)}`);
+    Logger.log(`[View State] Checkpointing updated viewer state`);
     await this.context.workspaceState.update(this.#getViewStateKey(uriString), normalizedViewState);
     lastCheckpointedViewStateCache.set(uriString, normalizedViewState);
   }
@@ -98,5 +98,15 @@ export class ViewStateManager {
     }
 
     this.#clearCheckpointTimer(uriString);
+  }
+
+  disposeUri(uriString) {
+    if (!uriString || uriString === "unknown-uri") {
+      return;
+    }
+
+    this.#clearCheckpointTimer(uriString);
+    viewStateMemoryCache.delete(uriString);
+    lastCheckpointedViewStateCache.delete(uriString);
   }
 }

@@ -42,6 +42,5 @@ export function getPdfConfiguration() {
         scrollStrategy: 'vertical',
         rotation: 0,
         tabBar: tabBar,
-        initialDocuments: [],
     };
 }

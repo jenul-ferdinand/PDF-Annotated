@@ -76,8 +76,9 @@ export default class PDFEdit {
    * Preview a PDF file from an API provider.
    * @param {import("../api").PdfFileDataProvider} provider
    * @param {vscode.WebviewPanel} panel
+   * @param {{ documentKey?: string, config?: Record<string, unknown>, viewState?: Record<string, unknown> }} [previewOptions]
    */
-  static async previewPdfFile(provider, panel) {
+  static async previewPdfFile(provider, panel, previewOptions = {}) {
     panel.webview.options = WEBVIEW_OPTIONS;
 
     const editor = new PDFEdit(PDFEdit.globalContext);
@@ -86,7 +87,7 @@ export default class PDFEdit {
       return;
     }
 
-    await editor.setupWebview(provider, panel);
+    await editor.setupWebview(provider, panel, previewOptions);
   }
 
   /**
@@ -130,12 +131,32 @@ export default class PDFEdit {
   }
 
   /**
+   * Save the custom document to a different location.
+   * @param {vscode.CustomDocument} document
+   * @param {vscode.Uri} destination
+   * @param {vscode.CancellationToken} cancellation
+   * @returns {Promise<void>}
+   */
+  async saveCustomDocumentAs(document, destination, cancellation) {
+    const uriString = document.uri.toString();
+    const editorEntry = activeEditors.get(uriString);
+
+    if (!editorEntry || !editorEntry.panel) {
+      throw new Error("No active PDF editor found for Save As");
+    }
+
+    await this.#ensureParentDirectory(destination);
+    await this.#performSave(document.uri, editorEntry.panel, cancellation, destination);
+  }
+
+  /**
    * Internal helper to save document
    * @param {vscode.Uri} uri
    * @param {vscode.WebviewPanel} panel
    * @param {vscode.CancellationToken} cancellation
+   * @param {vscode.Uri} [destinationUri]
    */
-  async #performSave(uri, panel, cancellation) {
+  async #performSave(uri, panel, cancellation, destinationUri = uri) {
     const uriString = uri.toString();
     const editorEntry = activeEditors.get(uriString);
 
@@ -143,47 +164,42 @@ export default class PDFEdit {
       throw new Error(`No active editor entry for ${uriString}`);
     }
 
-    Logger.log(`[Save] Initiating save for ${uriString}`);
+    if (editorEntry.pendingSave) {
+      throw new Error("A save is already in progress for this document");
+    }
 
-    // Create a promise that resolves when the webview returns the data
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    Logger.log(`[Save] Initiating save request ${requestId}`);
+
     return new Promise((resolve, reject) => {
-      // Set the resolver to be called when 'save-response' is received
-      editorEntry.resolveSave = async (data) => {
-        try {
-          if (!data) {
-            Logger.log(`[Save] No data received from webview`);
-            resolve();
-            return;
-          }
-
-          await this.#writeFileData(uri, data);
-          Logger.log(`[Save] File saved successfully`);
-          resolve();
-        } catch (e) {
-          Logger.log(`[Save] Error writing file: ${e}`);
-          reject(e);
-        } finally {
-          editorEntry.resolveSave = null;
-        }
-      };
-
-      // Send save command
-      panel.webview.postMessage({ command: 'save' });
-
-      // Handle cancellation/timeout
       const timeout = setTimeout(() => {
-        if (editorEntry.resolveSave) {
+        const entry = activeEditors.get(uriString);
+        if (entry?.pendingSave?.requestId === requestId) {
           Logger.log(`[Save] Timeout waiting for webview response`);
-          editorEntry.resolveSave = null;
+          this.#cleanupPendingSave(entry);
           reject(new Error("Save timed out"));
         }
-      }, 30000); // 30s timeout
+      }, 30000);
 
-      cancellation.onCancellationRequested(() => {
-        clearTimeout(timeout);
-        editorEntry.resolveSave = null;
-        reject(new Error("Save cancelled"));
+      const cancellationDisposable = cancellation.onCancellationRequested(() => {
+        const entry = activeEditors.get(uriString);
+        if (entry?.pendingSave?.requestId === requestId) {
+          Logger.log(`[Save] Save request cancelled`);
+          this.#cleanupPendingSave(entry);
+          reject(new Error("Save cancelled"));
+        }
       });
+
+      editorEntry.pendingSave = {
+        requestId,
+        destinationUri,
+        timeout,
+        cancellationDisposable,
+        resolve,
+        reject,
+      };
+
+      panel.webview.postMessage({ command: "save", requestId });
     });
   }
 
@@ -196,10 +212,73 @@ export default class PDFEdit {
     const buffer = data instanceof Uint8Array ? data : new Uint8Array(data);
     const editorEntry = activeEditors.get(uri.toString());
     if (editorEntry?.dataProvider instanceof PDFDoc) {
+      editorEntry.dataProvider.clearTransientSource();
       editorEntry.dataProvider.markPendingWrite();
     }
-    Logger.log(`[Save] Writing ${buffer.byteLength} bytes to ${uri.fsPath}`);
+    Logger.log(`[Save] Writing ${buffer.byteLength} bytes`);
     await vscode.workspace.fs.writeFile(uri, buffer);
+  }
+
+  #cleanupPendingSave(editorEntry) {
+    if (!editorEntry?.pendingSave) {
+      return;
+    }
+
+    clearTimeout(editorEntry.pendingSave.timeout);
+    editorEntry.pendingSave.cancellationDisposable.dispose();
+    editorEntry.pendingSave = null;
+  }
+
+  async #resolvePendingSave(uriString, requestId, rawData) {
+    const editorEntry = activeEditors.get(uriString);
+    const pendingSave = editorEntry?.pendingSave;
+    if (!pendingSave || pendingSave.requestId !== requestId) {
+      return false;
+    }
+
+    this.#cleanupPendingSave(editorEntry);
+
+    try {
+      if (!rawData) {
+        throw new Error("No data received from webview");
+      }
+
+      await this.#writeFileData(pendingSave.destinationUri, new Uint8Array(rawData));
+      Logger.log(`[Save] File saved successfully`);
+      pendingSave.resolve();
+    } catch (error) {
+      Logger.log(`[Save] Error writing file: ${error}`);
+      pendingSave.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+
+    return true;
+  }
+
+  #rejectPendingSave(uriString, requestId, errorMessage) {
+    const editorEntry = activeEditors.get(uriString);
+    const pendingSave = editorEntry?.pendingSave;
+    if (!pendingSave || pendingSave.requestId !== requestId) {
+      return false;
+    }
+
+    this.#cleanupPendingSave(editorEntry);
+    pendingSave.reject(new Error(errorMessage || "Save failed"));
+    return true;
+  }
+
+  #isAllowedExternalUri(uri) {
+    return ["http", "https", "mailto"].includes((uri?.scheme || "").toLowerCase());
+  }
+
+  #getParentUri(uri) {
+    const lastSlash = uri.path.lastIndexOf("/");
+    return uri.with({
+      path: lastSlash > 0 ? uri.path.slice(0, lastSlash) : "/",
+    });
+  }
+
+  async #ensureParentDirectory(uri) {
+    await vscode.workspace.fs.createDirectory(this.#getParentUri(uri));
   }
 
   async #handleOpenLink(message, documentUri) {
@@ -208,7 +287,13 @@ export default class PDFEdit {
 
     try {
       if (result?.outcome === "uri" && result.uri) {
-        await vscode.env.openExternal(vscode.Uri.parse(result.uri));
+        const externalUri = vscode.Uri.parse(result.uri);
+        if (!this.#isAllowedExternalUri(externalUri)) {
+          Logger.log(`[Open Link] Blocked unsupported external URI scheme: ${externalUri.scheme}`);
+          void vscode.window.showWarningMessage("Blocked an unsupported external link embedded in the PDF.");
+          return;
+        }
+        await vscode.env.openExternal(externalUri);
         return;
       }
 
@@ -217,7 +302,13 @@ export default class PDFEdit {
       }
 
       if (target.action.type === 3 && target.action.uri) {
-        await vscode.env.openExternal(vscode.Uri.parse(target.action.uri));
+        const externalUri = vscode.Uri.parse(target.action.uri);
+        if (!this.#isAllowedExternalUri(externalUri)) {
+          Logger.log(`[Open Link] Blocked unsupported external URI scheme: ${externalUri.scheme}`);
+          void vscode.window.showWarningMessage("Blocked an unsupported external link embedded in the PDF.");
+          return;
+        }
+        await vscode.env.openExternal(externalUri);
         return;
       }
 
@@ -225,17 +316,23 @@ export default class PDFEdit {
         return;
       }
 
-      let resourceUri;
-      if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(target.action.path)) {
-        resourceUri = vscode.Uri.parse(target.action.path);
-      } else if (target.action.path.startsWith("/")) {
-        resourceUri = vscode.Uri.file(target.action.path);
-      } else {
-        const lastSlash = documentUri.path.lastIndexOf("/");
-        const baseUri = documentUri.with({
-          path: lastSlash > 0 ? documentUri.path.slice(0, lastSlash) : "/",
-        });
-        resourceUri = vscode.Uri.joinPath(baseUri, target.action.path);
+      const normalizedPath = target.action.path.replace(/\\/g, "/");
+      if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(normalizedPath) || normalizedPath.startsWith("/")) {
+        Logger.log(`[Open Link] Blocked absolute or scheme-based file link`);
+        void vscode.window.showWarningMessage("Blocked a PDF link that points to an absolute path or unsupported URI.");
+        return;
+      }
+
+      const resourceUri = vscode.Uri.joinPath(this.#getParentUri(documentUri), normalizedPath);
+      const targetLabel = resourceUri.path.split("/").pop() || resourceUri.toString(true);
+      const selection = await vscode.window.showWarningMessage(
+        `This PDF wants to open "${targetLabel}".`,
+        { modal: true },
+        "Open"
+      );
+
+      if (selection !== "Open") {
+        return;
       }
 
       await vscode.commands.executeCommand("vscode.open", resourceUri);
@@ -253,12 +350,17 @@ export default class PDFEdit {
   async revertCustomDocument(document, _cancellation) {
     const uriString = document.uri.toString();
     const editorEntry = activeEditors.get(uriString);
+    const stateKey = editorEntry?.stateKey || uriString;
 
     Logger.log(`[Revert] Reverting document: ${uriString}`);
 
+    if (document instanceof PDFDoc) {
+      document.clearTransientSource();
+    }
+
     // Notify webview to reload
     if (editorEntry && editorEntry.panel) {
-      await this.viewStateManager.flush(uriString);
+      await this.viewStateManager.flush(stateKey);
       await this.#postViewerMessage(document, editorEntry.panel, "reload");
     }
   }
@@ -271,10 +373,24 @@ export default class PDFEdit {
    * @returns {Promise<vscode.CustomDocumentBackup>}
    */
   async backupCustomDocument(document, _context, _cancellation) {
-    // Implementation for hot exit / backup
+    await this.#ensureParentDirectory(_context.destination);
+
+    const uriString = document.uri.toString();
+    const editorEntry = activeEditors.get(uriString);
+
+    if (editorEntry?.panel) {
+      await this.#performSave(document.uri, editorEntry.panel, _cancellation, _context.destination);
+    } else if (typeof document.getFileData === "function") {
+      await this.#writeFileData(_context.destination, await document.getFileData());
+    } else {
+      throw new Error("Unable to back up PDF without an active editor");
+    }
+
     return {
-      id: document.uri.toString(),
-      delete: () => { }
+      id: _context.destination.toString(),
+      delete: () => {
+        void vscode.workspace.fs.delete(_context.destination).catch(() => { });
+      }
     };
   }
 
@@ -293,12 +409,13 @@ export default class PDFEdit {
     // Register editor instance
     activeEditors.set(uriString, {
       panel,
-      resolveSave: null,
+      stateKey: existingEntry?.stateKey || uriString,
       messageDisposable: existingEntry?.messageDisposable || null,
       changeDisposable: existingEntry?.changeDisposable || null,
       disposeDisposable: existingEntry?.disposeDisposable || null,
       lastViewState: existingEntry?.lastViewState || this.viewStateManager.getPersisted(uriString),
-      dataProvider: document
+      dataProvider: document,
+      pendingSave: existingEntry?.pendingSave || null
     });
 
     const changeEntry = activeEditors.get(uriString);
@@ -306,8 +423,9 @@ export default class PDFEdit {
       changeEntry.changeDisposable = document.onDidChange(async () => {
         Logger.log(`[Reload] Posting reload for ${uriString}`);
         const entry = activeEditors.get(uriString);
+        const stateKey = entry?.stateKey || uriString;
         if (entry?.panel) {
-          await this.viewStateManager.flush(uriString);
+          await this.viewStateManager.flush(stateKey);
           await this.#postViewerMessage(document, entry.panel, "reload");
         }
       });
@@ -315,8 +433,12 @@ export default class PDFEdit {
 
     if (!changeEntry?.disposeDisposable) {
       changeEntry.disposeDisposable = panel.onDidDispose(() => {
-        void this.viewStateManager.flush(uriString);
         const entry = activeEditors.get(uriString);
+        if (entry?.pendingSave) {
+          const pendingSave = entry.pendingSave;
+          this.#cleanupPendingSave(entry);
+          pendingSave.reject(new Error("Editor was closed before the save completed"));
+        }
         if (entry?.messageDisposable) {
           entry.messageDisposable.dispose();
         }
@@ -324,6 +446,10 @@ export default class PDFEdit {
           entry.changeDisposable.dispose();
         }
         activeEditors.delete(uriString);
+        const stateKey = entry?.stateKey || uriString;
+        void this.viewStateManager.flush(stateKey).finally(() => {
+          this.viewStateManager.disposeUri(stateKey);
+        });
         Logger.log(`Webview panel disposed for ${uriString}`);
       });
     }
@@ -346,7 +472,9 @@ export default class PDFEdit {
    */
   async openCustomDocument(uri, _context, _token) {
     Logger.log(`Opening Custom Document: ${uri.toString()}`);
-    return new PDFDoc(uri);
+    const backupUri = _context?.backupId ? vscode.Uri.parse(_context.backupId) : null;
+    const initialData = _context?.untitledDocumentData || null;
+    return new PDFDoc(uri, { backupUri, initialData });
   }
 
   /**
@@ -354,13 +482,14 @@ export default class PDFEdit {
    * @param {PDFDoc|import("../api").PdfFileDataProvider} dataProvider
    * @param {vscode.WebviewPanel} panel
    */
-  async setupWebview(dataProvider, panel) {
+  async setupWebview(dataProvider, panel, previewOptions = {}) {
     const startTime = Date.now();
     const extUri = this.context.extensionUri;
     const mediaUri = vscode.Uri.joinPath(extUri, "media");
 
     const uri = this.#getDataProviderUri(dataProvider);
     const uriString = uri ? uri.toString() : 'unknown-uri';
+    const stateKey = previewOptions.documentKey || activeEditors.get(uriString)?.stateKey || uriString;
 
     let localResourceRoots = [mediaUri];
 
@@ -401,7 +530,7 @@ export default class PDFEdit {
       // Inject variables into HTML
       panel.webview.html = getWebviewHtml(panel.webview, htmlContent, webviewBundleUri, mediaUri, wasmUri);
 
-      // Ensure old message listeners are cleaned up if re-initializing
+      // Replace any previous message listener before re-initializing
       const existingEntry = activeEditors.get(uriString);
       if (existingEntry && existingEntry.messageDisposable) {
         existingEntry.messageDisposable.dispose();
@@ -410,17 +539,25 @@ export default class PDFEdit {
       // Message Handling
       const messageDisposable = panel.webview.onDidReceiveMessage(async (message) => {
         if (message.command === 'ready') {
-          await this.handleWebviewReady(dataProvider, panel);
+          await this.handleWebviewReady(dataProvider, panel, previewOptions);
         } else if (message.command === 'log') {
           Logger.log(`[Webview] ${message.message}`);
         } else if (message.command === 'error') {
-          Logger.log(`[Webview Error] ${message.error}`);
+          if (!this.#rejectPendingSave(uriString, message.requestId, message.error)) {
+            Logger.log(`[Webview Error] ${message.error}`);
+          }
         } else if (message.command === 'viewer-state-changed') {
-          this.viewStateManager.updateHot(uriString, message.viewState || null);
+          const nextViewState = message.viewState || null;
+          const incomingStateKey = message.documentKey || stateKey;
+          this.viewStateManager.updateHot(incomingStateKey, nextViewState);
+          const entry = activeEditors.get(uriString);
+          if (entry) {
+            entry.lastViewState = nextViewState;
+          }
           if (message.flush) {
-            await this.viewStateManager.flush(uriString);
+            await this.viewStateManager.flush(incomingStateKey);
           } else {
-            this.viewStateManager.scheduleCheckpoint(uriString);
+            this.viewStateManager.scheduleCheckpoint(incomingStateKey);
           }
         } else if (message.command === "open-link") {
           await this.#handleOpenLink(message, uri);
@@ -432,48 +569,23 @@ export default class PDFEdit {
             undo: () => { }, // We don't support undo/redo yet
             redo: () => { }
           });
-        } else if (message.command === 'save-direct') {
-          // Unsolicited save from webview (e.g. Ctrl+S)
-          const rawData = message.data;
-          if (rawData && uri && uri.scheme !== 'pdf-api') {
-            Logger.log(`[Direct Save] Received ${rawData.length} bytes`);
-            try {
-              await this.#writeFileData(uri, rawData);
-              Logger.log('[Direct Save] File saved successfully');
-            } catch (e) {
-              Logger.log(`[Direct Save] Failed to write file: ${e}`);
-              panel.webview.postMessage({
-                command: 'error',
-                error: `Failed to save file: ${e.message}`
-              });
-            }
-          }
         } else if (message.command === 'close') {
           vscode.commands.executeCommand('workbench.action.closeActiveEditor');
         } else if (message.command === 'save-response') {
-          // Handle save response
-          const editorEntry = activeEditors.get(uriString);
-          if (editorEntry && editorEntry.resolveSave) {
-            const rawData = message.data;
-            if (rawData) {
-              // Convert standard Array back to Uint8Array
-              editorEntry.resolveSave(new Uint8Array(rawData));
-            } else {
-              editorEntry.resolveSave(null);
-            }
-          }
+          await this.#resolvePendingSave(uriString, message.requestId, message.data);
         }
       });
 
       // Update entry with new disposable and current panel
       activeEditors.set(uriString, {
         panel,
-        resolveSave: existingEntry ? existingEntry.resolveSave : null,
+        stateKey,
         messageDisposable,
         changeDisposable: existingEntry ? existingEntry.changeDisposable : null,
         disposeDisposable: existingEntry ? existingEntry.disposeDisposable : null,
         lastViewState: existingEntry ? existingEntry.lastViewState : this.viewStateManager.getPersisted(uriString),
-        dataProvider
+        dataProvider,
+        pendingSave: existingEntry ? existingEntry.pendingSave : null
       });
 
       const duration = Date.now() - startTime;
@@ -529,28 +641,41 @@ export default class PDFEdit {
    * @param {PDFDoc} dataProvider
    * @param {vscode.WebviewPanel} panel
    */
-  async handleWebviewReady(dataProvider, panel) {
+  async handleWebviewReady(dataProvider, panel, previewOptions = {}) {
     const isWeb = vscode.env.uiKind === vscode.UIKind.Web;
     Logger.log(`[Webview Ready] Environment: ${isWeb ? "Web" : "Desktop"} (UIKind: ${vscode.env.uiKind})`);
-    await this.#postViewerMessage(dataProvider, panel, "preview");
+    await this.#postViewerMessage(dataProvider, panel, "preview", previewOptions);
   }
 
-  async #postViewerMessage(dataProvider, panel, command) {
+  async #postViewerMessage(dataProvider, panel, command, previewOptions = {}) {
     const uri = this.#getDataProviderUri(dataProvider);
     const uriString = uri ? uri.toString() : "unknown-uri";
+    const documentKey = previewOptions.documentKey || activeEditors.get(uriString)?.stateKey || uriString;
     const extUri = this.context.extensionUri;
     const mediaUri = vscode.Uri.joinPath(extUri, "media");
     const wasmUri = panel.webview.asWebviewUri(vscode.Uri.joinPath(mediaUri, MEDIA_FILES.WASM));
+    const persistedViewState =
+      this.viewStateManager.getPersisted(documentKey) ||
+      activeEditors.get(uriString)?.lastViewState ||
+      null;
 
     const msg = {
       command,
-      documentKey: uriString,
+      documentKey,
       wasmUri: wasmUri.toString(true),
-      config: getPdfConfiguration(),
-      viewState: this.viewStateManager.getPersisted(uriString) || activeEditors.get(uriString)?.lastViewState || null,
+      config: {
+        ...getPdfConfiguration(),
+        ...(previewOptions.config || {}),
+      },
+      viewState: previewOptions.viewState
+        ? {
+          ...(persistedViewState || {}),
+          ...previewOptions.viewState,
+        }
+        : persistedViewState,
     };
 
-    Logger.log(`[View State] Sending ${command} for ${uriString}: ${JSON.stringify(msg.viewState)}`);
+    Logger.log(`[View State] Sending ${command} payload to webview`);
 
     if (dataProvider.uri) {
       Logger.log(`Strategy: URI Mode (${command})`);

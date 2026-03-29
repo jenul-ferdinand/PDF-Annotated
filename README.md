@@ -4,83 +4,54 @@
 
 <div align="center">
 
-[![Visual Studio Marketplace Last Updated](https://img.shields.io/visual-studio-marketplace/last-updated/chocolatedesue.modern-pdf-preview?color=darkblue&logo=visual%20studio%20code&logoColor=007acc)][vsc-marketplace]
 [![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/chocolatedesue.modern-pdf-preview?color=darkblue&logo=visual%20studio%20code&logoColor=007acc)][vsc-marketplace]
 [![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/chocolatedesue.modern-pdf-preview?color=darkblue&label=Install%20Count&logo=visual%20studio%20code&logoColor=007acc)][vsc-marketplace]
-
-
-[![GitHub issues](https://img.shields.io/github/issues/chocolatedesue/vscode-pdf)](https://github.com/chocolatedesue/vscode-pdf/issues)
-[![GitHub stars](https://img.shields.io/github/stars/chocolatedesue/vscode-pdf)](https://github.com/chocolatedesue/vscode-pdf/stargazers)
 [![GitHub license](https://img.shields.io/github/license/chocolatedesue/vscode-pdf)](https://github.com/chocolatedesue/vscode-pdf/blob/main/LICENSE)
 
 </div>
 
-**Modern PDF Preview** is a next-generation PDF viewer for VS Code, designed for speed, accuracy, and productivity. 
+Fast PDF preview for VS Code, built on `PDFium WASM` and `@embedpdf/*`.
 
-It is built on top of **[PDFium WASM](https://github.com/bblanchon/pdfium-binaries)** and wrapped with **[embed-pdf-viewer](https://github.com/embedpdf/embed-pdf-viewer)**, delivering a Chrome-grade rendering experience directly inside your editor.
+## Features
 
-## ✨ Key Features
+- Fast rendering with WASM
+- Annotation support
+- Save with `Ctrl+S` / `Cmd+S`
+- Desktop and Web support
+- Theme sync
+- Public API for other extensions
 
-### 🚀 High Performance
-Powered by **WebAssembly (WASM)**, this extension renders large PDFs instantly without slowing down VS Code. Smooth scrolling and zooming come standard.
+## Settings
 
-### 🖊️ Annotation & Saving
-Review and mark up documents directly.
-- **Highlight** important text.
-- **Draw** ink signatures or diagrams.
-- **Add Notes** and comments.
-- **Direct Save**: Press `Ctrl+S` (Windows/Linux) or `Cmd+S` (macOS) to directly overwrite the PDF file with your modifications.
+- `modernPdfViewer.defaultZoomLevel`
+- `modernPdfViewer.defaultSpreadMode`
+- `modernPdfViewer.tabBar`
 
-### 🌐 Universal Support
-Works everywhere you use VS Code.
-- **Desktop**: Full features supported on Windows, macOS, and Linux.
-- **Web**: Supports VS Code for Web (vscode.dev) and GitHub Codespaces.
-    - **Note**: The Web version is optimized for **viewing only**. Other features (like annotation saving) are not guaranteed to work in the browser environment.
-- **Privacy-First**: All rendering happens locally. Your data never leaves your machine (or browser sandbox).
+## Notes
 
-### ⚙️ Configuration
+- Hidden PDF tabs keep their webview context to preserve state.
+- Memory usage grows with the number of open PDFs.
+- Close unused PDF tabs if you work with large files.
 
-Customize the initial viewer state in your VS Code settings:
+## Install
 
-- `modernPdfViewer.defaultZoomLevel`: Initial zoom (e.g., `page-width`, `page-fit`, `100%`).
-- `modernPdfViewer.defaultSpreadMode`: Initial spread (e.g., `none`, `odd`, `even`).
+- VS Code Marketplace: [chocolatedesue.modern-pdf-preview](https://marketplace.visualstudio.com/items?itemName=chocolatedesue.modern-pdf-preview)
+- Open VSX: [chocolatedesue.modern-pdf-preview](https://open-vsx.org/extension/chocolatedesue/modern-pdf-preview)
 
-### 🎨 Seamless Integration
-- **Theme Sync**: Automatically adapts to Light, Dark, and High Contrast themes.
-- **Rich Toolbar**: Thumbnails, Outline/Bookmarks, Search, Print, and Presentation Mode.
+## Docs
 
-## ⚠️ Resource Management Notice
+- [API](docs/API.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Development](docs/DEVELOPMENT.md)
+- [Reference Repository](docs/REFERENCE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
 
-- **Multiple Webviews**: Each PDF document opens in its own independent Webview container.
-- **No Automatic Recycling**: The extension **does not** implement an automatic LRU (Least Recently Used) recycling mechanism for open documents.
-- **Memory Usage**: To ensure high performance and context retention (`retainContextWhenHidden: true`), Webviews are kept in memory even when hidden.
-- **Recommendation**: Please manually close PDF tabs you are no longer using to free up system resources, especially when dealing with very large files.
+## Credits
 
-## 📦 Installation & Search
+- [embed-pdf-viewer](https://github.com/embedpdf/embed-pdf-viewer)
+- [PDFium WASM](https://github.com/bblanchon/pdfium-binaries)
+- [mathematic-inc/vscode-pdf](https://github.com/mathematic-inc/vscode-pdf) as reference only
 
-### 🔍 Search
-Search for **"Modern PDF Preview"** in the VS Code Extensions panel or use the ID: `chocolatedesue.modern-pdf-preview`.
-
-### 🛒 Marketplaces
-- **VS Code Marketplace**: [chocolatedesue.modern-pdf-preview](https://marketplace.visualstudio.com/items?itemName=chocolatedesue.modern-pdf-preview)
-- **Open VSX Registry**: [chocolatedesue.modern-pdf-preview](https://open-vsx.org/extension/chocolatedesue/modern-pdf-preview)
-
-## 📚 Documentation
-
-- **[Technical Architecture](docs/ARCHITECTURE.md)**: How WASM and Web Workers are used.
-- **[Development Guide](docs/DEVELOPMENT.md)**: Setup, build, testing, and release procedures.
-- **[Reference Repository Guide](docs/REFERENCE.md)**: How to use the `references/vscode-pdf` submodule for VS Code integration comparisons.
-- **[API Reference](docs/API.md)**: Preview PDFs from your own extension.
-- **[Troubleshooting](docs/TROUBLESHOOTING.md)**: Solutions for common issues.
-
-## 📜 Credits & License
-
-This project is an evolution of [vscode-pdf-viewer](https://github.com/AdamRaichu/vscode-pdf-viewer) and uses:
-- **[embed-pdf-viewer](https://github.com/embedpdf/embed-pdf-viewer)**: Core UI component.
-- **[PDFium WASM](https://github.com/bblanchon/pdfium-binaries)**: High-performance rendering engine (Apache 2.0 / BSD 3-Clause).
-- **[mathematic-inc/vscode-pdf](https://github.com/mathematic-inc/vscode-pdf)**: Included as a reference submodule for VS Code custom editor and Webview interaction patterns.
-
-License: **MIT**
+License: MIT
 
 [vsc-marketplace]: https://marketplace.visualstudio.com/items?itemName=chocolatedesue.modern-pdf-preview
-

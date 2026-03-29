@@ -1,128 +1,73 @@
-# Development Guide
+# Development
 
-This document explains how to develop, test, and release the **Modern PDF Preview** extension.
+## Prerequisites
 
-## 1. Setup
+- Bun recommended
+- Node.js 16+ supported
+- VS Code for local testing
 
-### Prerequisites
-- **Bun**: v1.1 or higher (Recommended)
-- **Node.js**: v16 or higher (Fallback)
-- **VS Code**: for manual testing and development
+## Setup
 
-### Installation
 ```bash
 bun install
-```
-
-### Reference Submodule
-This repository includes `references/vscode-pdf` as a Git submodule for implementation reference.
-
-Initialize it after cloning if needed:
-
-```bash
 git submodule update --init --recursive
 ```
 
-Use it to compare VS Code-facing behavior such as `CustomEditorProvider`, Webview wiring, and message flow. Do not treat it as a runtime dependency of this extension.
-
-## 2. Extension Architecture
-
-The extension is built for two targets:
-- **Desktop (Node.js)**: Uses `dist/extension.node.js`.
-- **Web (Web Worker)**: Uses `dist/extension.browser.js` for support on vscode.dev and GitHub Codespaces.
-
-The `package.json` specifies these via `main` and `browser` fields respectively.
-
-For VS Code integration reference, compare our implementation in `src/providers/editorProvider.js` with `references/vscode-pdf/src/pdf-viewer-provider.ts`.
-
-## 3. Build & Development
-
-The extension uses `webpack` to bundle dependencies and assets.
+## Build
 
 ```bash
-# Production build
 bun run build
-
-# Watch mode (automatically rebuild on changes)
 bunx webpack --watch
 ```
 
-## 4. Testing
+## Test
 
-### VS Code for the Web
-To run the extension in an interactive VS Code instance in your browser:
+Web:
 
-1.  **Start the web server**:
-    ```bash
-    bun run test-web
-    ```
-2.  **Open the URL**:
-    By default, it will open `http://localhost:3000`.
+```bash
+bun run test-web
+```
 
-### Headless Web Testing
-To run tests in a headless browser (useful for CI/CD):
+Headless Web:
 
 ```bash
 bun run test-web-headless
 ```
 
-### Manual Desktop Testing
-1.  Open the project in VS Code.
-2.  Press `F5` to launch an **Extension Development Host**.
-3.  Open any `.pdf` file to verify functionality.
+Desktop:
 
-## 5. Component Updates
+1. Open the repo in VS Code.
+2. Press `F5`.
+3. Open a `.pdf`.
 
-This project vendors third-party components (JS/WASM) in the `media/` directory.
+## Release
 
-### Updating `embed-pdf-viewer` & `pdfium`
-The update process is automated:
+Update:
 
-1.  **Install Latest Package**:
-    ```bash
-    bun add @embedpdf/snippet@latest
-    ```
-2.  **Run Update Script**:
-    ```bash
-    bun run update-media
-    ```
+- `package.json` version
+- `CHANGELOG.md`
 
-## 6. Release & Publishing
-
-### Versioning
-1.  Update the version in `package.json`.
-2.  Add a entry to `CHANGELOG.md`.
-
-### Publishing
-The project includes a helper script `scripts/publish.sh` that publishes to both VS Code Marketplace and Open VSX Registry.
-
-**Prerequisites**:
-- A `.env` file with `VSCE_PAT` (and optionally `OVSX_TOKEN`).
-
-**Command**:
-```bash
-bun run deploy
-```
-
-### Direct VSIX Publishing
-For Bun-managed workspaces, `vsce` and `ovsx` dependency detection can disagree with the installed `node_modules` tree. When that happens, publish the already-built VSIX directly instead of asking the publisher tool to inspect dependencies.
-
-Build the package first:
+Package:
 
 ```bash
 bun run package
 ```
 
-Publish to VS Code Marketplace from the generated VSIX:
+Publish:
+
+```bash
+bun run deploy
+```
+
+If direct publishing is needed:
 
 ```bash
 set -a; source .env
 bunx vsce publish -p "$VSCE_PAT" -i ./modern-pdf-preview-<version>.vsix --no-dependencies
-```
-
-Publish to Open VSX from the generated VSIX:
-
-```bash
-set -a; source .env
 bunx ovsx publish -p "$OVSX_TOKEN" -i ./modern-pdf-preview-<version>.vsix
 ```
+
+## Notes
+
+- `references/vscode-pdf` is reference-only.
+- Do not import runtime code from the reference submodule.

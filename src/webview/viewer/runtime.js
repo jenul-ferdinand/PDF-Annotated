@@ -4,7 +4,6 @@ const RESTORE_SETTLE_MS = 700;
 
 export function createViewerRuntime({ pdfState, vscodeService }) {
   let registryDisposables = [];
-  let localSyncTimeout;
   let extensionSyncTimeout;
   let checkpointSyncTimeout;
   let settleTimeout;
@@ -26,7 +25,6 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
   let annotationCapability = null;
 
   function clearTimers() {
-    clearTimeout(localSyncTimeout);
     clearTimeout(extensionSyncTimeout);
     clearTimeout(checkpointSyncTimeout);
     clearTimeout(settleTimeout);
@@ -86,30 +84,34 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
     }
 
     const syncState = buildCurrentViewState(overrides);
-    pdfState.syncViewState(syncState, { notifyExtension: false });
-
-    if (!force && !flush) {
-      clearTimeout(localSyncTimeout);
-      localSyncTimeout = window.setTimeout(() => {
-        pdfState.syncViewState(buildCurrentViewState(), { notifyExtension: false });
-      }, 120);
-    }
+    pdfState.syncViewState(syncState, { notifyExtension: false, persistLocally: false });
 
     if (flush) {
       clearTimeout(extensionSyncTimeout);
       clearTimeout(checkpointSyncTimeout);
-      pdfState.syncViewState(syncState, { notifyExtension: true, flush: true });
+      pdfState.syncViewState(syncState, {
+        notifyExtension: true,
+        flush: true,
+        persistLocally: true,
+      });
       return;
     }
 
     clearTimeout(extensionSyncTimeout);
     extensionSyncTimeout = window.setTimeout(() => {
-      pdfState.syncViewState(buildCurrentViewState(), { notifyExtension: true });
+      pdfState.syncViewState(buildCurrentViewState(), {
+        notifyExtension: true,
+        persistLocally: true,
+      });
     }, immediate ? 0 : 180);
 
     clearTimeout(checkpointSyncTimeout);
     checkpointSyncTimeout = window.setTimeout(() => {
-      pdfState.syncViewState(buildCurrentViewState(), { notifyExtension: true, flush: true });
+      pdfState.syncViewState(buildCurrentViewState(), {
+        notifyExtension: true,
+        flush: true,
+        persistLocally: true,
+      });
     }, settlingDelay > 0 ? settlingDelay + 150 : 1600);
   }
 
@@ -247,7 +249,7 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
             pageNumber: event.metrics.currentPage,
             pageCoordinates: getPageCoordinates(event.metrics, event.metrics.currentPage),
           });
-        }, 120);
+        }, 180);
       })
     );
 
@@ -349,11 +351,6 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
 
     console.log("[Webview] PDF Viewer Ready with Registry");
     pdfState.registry = registry;
-
-    window.markDirty = () => {
-      console.log("[Webview] Sending dirty signal");
-      vscodeService.postMessage({ command: "dirty" });
-    };
 
     const scrollPlugin = registry.getPlugin("scroll");
     const zoomPlugin = registry.getPlugin("zoom");

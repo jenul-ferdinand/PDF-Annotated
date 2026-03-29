@@ -1,55 +1,65 @@
 # API Reference
 
-Modern PDF Preview (WASM) exports an API that other extension authors can use to open PDF previews within VS Code.
+`Modern PDF Preview` 暴露了一个简单 API，供其他 VS Code 扩展打开 PDF 预览。
 
-## Usage
+## Get API
 
-To use the API, you must first obtain it from the extension.
-
-```javascript
-const pdfViewer = vscode.extensions.getExtension('chocolatedesue.modern-pdf-preview');
-const api = await pdfViewer.activate();
+```js
+const ext = vscode.extensions.getExtension("chocolatedesue.modern-pdf-preview");
+const api = await ext.activate();
 const pdfApi = api.getV1Api();
 ```
 
-## `PdfViewerApi`
+## Preview
 
-### `previewPdfFile(provider)`
+```js
+pdfApi.previewPdfFile(provider, options);
+```
 
-Creates a new Webview panel and displays the PDF provided by the `provider`.
+- `provider`: `PdfFileDataProvider`
+- `options.name`: 覆盖标签标题
+- `options.documentKey`: 视图状态持久化 key
+- `options.config`: 单次预览配置
+- `options.viewState`: 初始视图状态
 
-- `provider`: An instance of `PdfFileDataProvider`.
+常用 `viewState` 字段：
 
-## `PdfFileDataProvider`
+- `pageNumber`
+- `pageCoordinates`
+- `zoomLevel`
+- `spreadMode`
+- `rotation`
+- `scrollStrategy`
 
-A holder for PDF file data.
+## Data Provider
 
-### Static Methods
+```js
+const provider = pdfApi.PdfFileDataProvider.fromUint8Array(fileData);
+```
 
-- `fromBase64String(base64Data)`: Creates a provider from a Base64 encoded string.
-- `fromUint8Array(u8array)`: Creates a provider from a `Uint8Array`.
+可用方法：
 
-### Instance Methods
-
-- `withName(newName)`: Sets the display name for the PDF (shown as the tab title). Returns the instance for chaining.
+- `fromUint8Array(data)`
+- `fromBase64String(data)`
+- `withName(name)`
 
 ## Example
 
-```javascript
-import * as vscode from 'vscode';
+```js
+const fileData = await vscode.workspace.fs.readFile(uri);
 
-export async function activate(context) {
-    const pdfViewer = vscode.extensions.getExtension('chocolatedesue.modern-pdf-preview');
-    const api = await pdfViewer.activate();
-    const pdfApi = api.getV1Api();
+const provider = pdfApi.PdfFileDataProvider
+  .fromUint8Array(fileData)
+  .withName("Release Notes");
 
-    const disposable = vscode.commands.registerCommand('my-extension.previewPdf', async (uri) => {
-        const fileData = await vscode.workspace.fs.readFile(uri);
-        const provider = pdfApi.PdfFileDataProvider.fromUint8Array(fileData)
-                            .withName('Custom Preview');
-        pdfApi.previewPdfFile(provider);
-    });
-
-    context.subscriptions.push(disposable);
-}
+pdfApi.previewPdfFile(provider, {
+  documentKey: `preview:${uri.toString()}`,
+  viewState: {
+    pageNumber: 5,
+    zoomLevel: "fit-width",
+  },
+  config: {
+    tabBar: "never",
+  },
+});
 ```

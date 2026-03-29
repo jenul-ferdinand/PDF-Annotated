@@ -1,37 +1,29 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+## [1.5.8] - 2026-03-29
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+- Added SDK preview options for per-preview config and initial view state.
+- Added support for opening API previews at a specific initial page.
+- Reduced view-state persistence work during scroll.
+- Fixed Blob creation for injected PDF data to avoid extra bytes and memory waste.
+- Removed outdated save and viewer hooks, and trimmed project docs.
 
 ## [1.5.7] - 2026-03-29
 
-### Improved
-- **Viewer Restore**: Reduced restore-time persistence churn by deduplicating checkpoints, delaying post-restore flushes, and moving more viewer defaults into startup configuration.
-- **Code Structure**: Extracted view state persistence and viewer runtime logic into dedicated modules for easier maintenance and future extension.
+- Reduced restore-time view-state churn.
+- Moved viewer runtime and persistence logic into separate modules.
 
 ## [1.5.6] - 2026-03-29
 
-### Updated
-- **Dependencies**: Refreshed Bun-managed dependencies, including the EmbedPDF stack and build tooling.
-- **Packaging**: Realigned `@types/vscode` with `engines.vscode` so VSIX packaging works reliably with `vsce`.
-
-### Added
-- **Reference Submodule**: Added `references/vscode-pdf` as a Git submodule for VS Code custom editor and Webview integration reference.
-- **Documentation**: Added submodule usage guidance and development notes for the reference repository.
+- Updated Bun dependencies and build tooling.
+- Fixed VSIX packaging by aligning `@types/vscode` with `engines.vscode`.
+- Added `references/vscode-pdf` submodule and related docs.
 
 ## [1.5.5] - 2026-01-17
 
-### Fixed
-- **Session Persistence**: Fixed issue where PDFs failed to load after VSCode restart due to expired webview URIs.
-- **View State Restoration**: Implemented automatic page position restoration after VSCode restart.
-
-### Optimized
-- **Performance**: Added HTML template caching to reduce file I/O operations (1-2ms improvement per PDF load).
-- **Code Quality**: Unified file save logic, removing duplicate code paths for better maintainability.
-- **State Management**: Added debounce (300ms) to view state saves to prevent excessive serialization during rapid page changes.
-- **Configuration**: Centralized webview options to ensure consistency across the extension.
-
-### Removed
-- **Code Cleanup**: Removed unused constants (`EDITOR_JS`, `BASE64_CHUNK_SIZE`) and imports for cleaner codebase.
+- Fixed broken reload after VS Code restart caused by expired webview URIs.
+- Added page/view-state restoration after restart.
+- Cached the HTML template to reduce file I/O.
+- Unified save logic and reduced view-state serialization churn.
+- Centralized webview options.
+- Removed unused constants and imports.

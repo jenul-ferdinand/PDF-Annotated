@@ -76,15 +76,39 @@ export default class PdfViewerApi {
   /**
    * Create a data provider and webview panel for a given pdf file and display it.
    * @param {PdfFileDataProvider} provider A holder for the file data.
+   * @param {{
+   *   name?: string,
+   *   documentKey?: string,
+   *   config?: Record<string, unknown>,
+   *   viewState?: {
+   *     pageNumber?: number,
+   *     pageCoordinates?: { x: number, y: number },
+   *     zoomLevel?: string | number,
+   *     spreadMode?: string,
+   *     rotation?: number,
+   *     scrollStrategy?: string,
+   *     sidebar?: {
+   *       placement: string,
+   *       slot: string,
+   *       sidebarId: string,
+   *       tabId?: string
+   *     }
+   *   }
+   * }} [options]
    */
-  static previewPdfFile(provider) {
-    Logger.log(`API: Creating preview for: ${provider.name}`);
+  static previewPdfFile(provider, options = {}) {
+    const panelTitle = options.name || provider.name;
+    if (options.name) {
+      provider.withName(options.name);
+    }
+
+    Logger.log(`API: Creating preview for: ${panelTitle}`);
     const panel = vscode.window.createWebviewPanel(
       "modernPdfViewer.apiCreatedPreview",
-      provider.name,
+      panelTitle,
       vscode.ViewColumn.Active,
       WEBVIEW_OPTIONS
     );
-    PDFEdit.previewPdfFile(provider, panel);
+    PDFEdit.previewPdfFile(provider, panel, options);
   }
 }

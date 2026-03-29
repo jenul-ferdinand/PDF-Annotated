@@ -115,7 +115,7 @@ export const pdfState = $state({
   },
 
   syncViewState(viewState, options = {}) {
-    const { notifyExtension = true, flush = false } = options;
+    const { notifyExtension = true, flush = false, persistLocally = true } = options;
     const nextViewState = normalizeViewState(viewState);
     const viewStateChanged = !areViewStatesEqual(this.persistedViewState, nextViewState);
 
@@ -123,25 +123,28 @@ export const pdfState = $state({
       this.persistedViewState = nextViewState;
     }
 
-    const currentState = vscodeService.getState() || {};
-    const shouldPersistLocally =
-      viewStateChanged ||
-      currentState.documentKey !== this.currentDocumentKey ||
-      !areViewStatesEqual(currentState.viewState, nextViewState) ||
-      currentState.config !== this.messageConfig;
+    if (persistLocally) {
+      const currentState = vscodeService.getState() || {};
+      const shouldPersistLocally =
+        viewStateChanged ||
+        currentState.documentKey !== this.currentDocumentKey ||
+        !areViewStatesEqual(currentState.viewState, nextViewState) ||
+        currentState.config !== this.messageConfig;
 
-    if (shouldPersistLocally) {
-      vscodeService.setState({
-        ...currentState,
-        documentKey: this.currentDocumentKey,
-        viewState: nextViewState,
-        config: this.messageConfig,
-      });
+      if (shouldPersistLocally) {
+        vscodeService.setState({
+          ...currentState,
+          documentKey: this.currentDocumentKey,
+          viewState: nextViewState,
+          config: this.messageConfig,
+        });
+      }
     }
 
     if (notifyExtension && (viewStateChanged || flush)) {
       vscodeService.postMessage({
         command: "viewer-state-changed",
+        documentKey: this.currentDocumentKey,
         viewState: nextViewState,
         flush,
       });
@@ -182,7 +185,7 @@ export const pdfState = $state({
       if (this.activeBlobUrl) {
         URL.revokeObjectURL(this.activeBlobUrl);
       }
-      const blob = new Blob([buffer.buffer], { type: "application/pdf" });
+      const blob = new Blob([buffer], { type: "application/pdf" });
       src = URL.createObjectURL(blob);
       this.activeBlobUrl = src;
     }
@@ -207,24 +210,28 @@ export const pdfState = $state({
   },
 
   async handleSave(message) {
-    if (this.registry) {
-      try {
-        const exportPlugin = this.registry.getPlugin("export")?.provides();
-        if (exportPlugin) {
-          const arrayBuffer = await exportPlugin.saveAsCopy().toPromise();
-          vscodeService.postMessage({
-            command: "save-response",
-            data: new Uint8Array(arrayBuffer),
-            requestId: message.requestId,
-          });
-        }
-      } catch (e) {
-        vscodeService.postMessage({
-          command: "error",
-          error: e.message,
-          requestId: message.requestId,
-        });
+    try {
+      if (!this.registry) {
+        throw new Error("PDF viewer is not ready to save yet.");
       }
+
+      const exportPlugin = this.registry.getPlugin("export")?.provides();
+      if (!exportPlugin) {
+        throw new Error("Export plugin is unavailable.");
+      }
+
+      const arrayBuffer = await exportPlugin.saveAsCopy().toPromise();
+      vscodeService.postMessage({
+        command: "save-response",
+        data: new Uint8Array(arrayBuffer),
+        requestId: message.requestId,
+      });
+    } catch (e) {
+      vscodeService.postMessage({
+        command: "error",
+        error: e?.message || String(e),
+        requestId: message.requestId,
+      });
     }
   }
 });

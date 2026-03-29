@@ -7,9 +7,12 @@ const vscode = require("vscode");
 export class PDFDoc {
   /**
    * @param {vscode.Uri} uri
+   * @param {{ backupUri?: vscode.Uri | null, initialData?: Uint8Array | null }} [options]
    */
-  constructor(uri) {
+  constructor(uri, options = {}) {
     this._uri = uri;
+    this._backupUri = options.backupUri || null;
+    this._initialData = options.initialData || null;
     this._inFlightRead = null;
     this._disposables = [];
     this._ignoreChangesUntil = 0;
@@ -91,6 +94,11 @@ export class PDFDoc {
     this._ignoreChangesUntil = Date.now() + durationMs;
   }
 
+  clearTransientSource() {
+    this._backupUri = null;
+    this._initialData = null;
+  }
+
   /**
    * Reads the file data with concurrency protection.
    * @returns {Promise<Uint8Array>}
@@ -103,10 +111,16 @@ export class PDFDoc {
 
     this._inFlightRead = (async () => {
       try {
+        if (this._initialData) {
+          return this._initialData;
+        }
+
+        const sourceUri = this._backupUri || this.uri;
+
         // Check file size limit for Web environment (100MB)
         if (vscode.env.uiKind === vscode.UIKind.Web) {
           try {
-            const stat = await vscode.workspace.fs.stat(this.uri);
+            const stat = await vscode.workspace.fs.stat(sourceUri);
             const MAX_SIZE_MB = 100;
             if (stat.size > MAX_SIZE_MB * 1024 * 1024) {
               throw new Error(`File is too large (${(stat.size / 1024 / 1024).toFixed(1)}MB) for the Web version (Max ${MAX_SIZE_MB}MB). Please use VS Code Desktop.`);
@@ -120,7 +134,7 @@ export class PDFDoc {
         }
 
         const startTime = Date.now();
-        const fileData = await vscode.workspace.fs.readFile(this.uri);
+        const fileData = await vscode.workspace.fs.readFile(sourceUri);
 
         const duration = Date.now() - startTime;
         Logger.logPerformance('PDF data loaded', duration, {
