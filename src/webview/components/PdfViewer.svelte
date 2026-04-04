@@ -33,6 +33,9 @@
       annotations: {
         autoOpenLinks: false,
       },
+      render: {
+        defaultImageType: "image/bmp",
+      },
       scroll: {
         defaultStrategy: initialViewState.scrollStrategy || pdfState.messageConfig?.scrollStrategy || "vertical",
       },

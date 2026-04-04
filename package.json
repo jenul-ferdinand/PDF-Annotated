@@ -120,7 +120,7 @@
   },
   "devDependencies": {
     "@actions/core": "^3.0.0",
-    "@embedpdf/svelte-pdf-viewer": "^2.10.1",
+    "@embedpdf/svelte-pdf-viewer": "^2.13.0",
     "@types/vscode": "^1.75.0",
     "@vscode/test-web": "^0.0.80",
     "@vscode/vsce": "^3.7.1",
@@ -133,8 +133,8 @@
     "webpack-cli": "^7.0.2"
   },
   "dependencies": {
-    "@embedpdf/core": "^2.10.1",
-    "@embedpdf/plugin-document-manager": "^2.10.1",
-    "@embedpdf/plugin-render": "^2.10.1"
+    "@embedpdf/core": "^2.13.0",
+    "@embedpdf/plugin-document-manager": "^2.13.0",
+    "@embedpdf/plugin-render": "^2.13.0"
   }
 }
