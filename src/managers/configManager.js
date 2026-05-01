@@ -5,7 +5,7 @@ const vscode = require('vscode');
  * @returns {Object}
  */
 export function getPdfConfiguration() {
-    const config = vscode.workspace.getConfiguration('modernPdfViewer');
+    const config = vscode.workspace.getConfiguration('pdfAnnotated');
 
     // Map VS Code enum values to @embedpdf/snippet values
     const zoomMap = {

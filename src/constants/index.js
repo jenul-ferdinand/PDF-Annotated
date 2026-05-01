@@ -1,6 +1,6 @@
 // Extension configuration constants
-export const VIEW_TYPE = "modernPdfViewer.PDFEdit";
-export const OUTPUT_CHANNEL_NAME = "Modern PDF Preview";
+export const VIEW_TYPE = "pdfAnnotated.PDFEdit";
+export const OUTPUT_CHANNEL_NAME = "PDF Annotated";
 
 // Media files
 export const MEDIA_FILES = {

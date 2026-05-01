@@ -23,7 +23,7 @@ class PdfFileDataProvider {
   constructor(type, data) {
     this.type = type;
     this.data = data;
-    this.name = "PDF Preview (via API)";
+    this.name = "PDF Annotated (via API)";
   }
 
   static fromBase64String(base64Data) {
@@ -104,7 +104,7 @@ export default class PdfViewerApi {
 
     Logger.log(`API: Creating preview for: ${panelTitle}`);
     const panel = vscode.window.createWebviewPanel(
-      "modernPdfViewer.apiCreatedPreview",
+      "pdfAnnotated.apiCreatedPreview",
       panelTitle,
       vscode.ViewColumn.Active,
       WEBVIEW_OPTIONS

@@ -1,11 +1,11 @@
 # API Reference
 
-`Modern PDF Preview` 暴露了一个简单 API，供其他 VS Code 扩展打开 PDF 预览。
+`PDF Annotated` exposes a small API that other VS Code extensions can use to open PDF previews.
 
 ## Get API
 
 ```js
-const ext = vscode.extensions.getExtension("chocolatedesue.modern-pdf-preview");
+const ext = vscode.extensions.getExtension("jenul-ferdinand.pdf-annotated");
 const api = await ext.activate();
 const pdfApi = api.getV1Api();
 ```
@@ -17,12 +17,12 @@ pdfApi.previewPdfFile(provider, options);
 ```
 
 - `provider`: `PdfFileDataProvider`
-- `options.name`: 覆盖标签标题
-- `options.documentKey`: 视图状态持久化 key
-- `options.config`: 单次预览配置
-- `options.viewState`: 初始视图状态
+- `options.name`: overrides the tab title
+- `options.documentKey`: persistence key for viewer state
+- `options.config`: per-preview configuration
+- `options.viewState`: initial viewer state
 
-常用 `viewState` 字段：
+Common `viewState` fields:
 
 - `pageNumber`
 - `pageCoordinates`
@@ -37,7 +37,7 @@ pdfApi.previewPdfFile(provider, options);
 const provider = pdfApi.PdfFileDataProvider.fromUint8Array(fileData);
 ```
 
-可用方法：
+Available methods:
 
 - `fromUint8Array(data)`
 - `fromBase64String(data)`

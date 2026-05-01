@@ -1,16 +1,6 @@
-# Modern PDF Preview (WASM)
+# PDF Annotated
 
-<!-- markdownlint-disable MD033 -->
-
-<div align="center">
-
-[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/chocolatedesue.modern-pdf-preview?color=darkblue&logo=visual%20studio%20code&logoColor=007acc)][vsc-marketplace]
-[![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/chocolatedesue.modern-pdf-preview?color=darkblue&label=Install%20Count&logo=visual%20studio%20code&logoColor=007acc)][vsc-marketplace]
-[![GitHub license](https://img.shields.io/github/license/chocolatedesue/vscode-pdf)](https://github.com/chocolatedesue/vscode-pdf/blob/main/LICENSE)
-
-</div>
-
-Fast PDF preview for VS Code, built on `PDFium WASM` and `@embedpdf/*`.
+Fast PDF preview and annotation editing for VS Code, built on `PDFium WASM` and `@embedpdf/*`.
 
 ## Features
 
@@ -23,9 +13,9 @@ Fast PDF preview for VS Code, built on `PDFium WASM` and `@embedpdf/*`.
 
 ## Settings
 
-- `modernPdfViewer.defaultZoomLevel`
-- `modernPdfViewer.defaultSpreadMode`
-- `modernPdfViewer.tabBar`
+- `pdfAnnotated.defaultZoomLevel`
+- `pdfAnnotated.defaultSpreadMode`
+- `pdfAnnotated.tabBar`
 
 ## Notes
 
@@ -35,8 +25,11 @@ Fast PDF preview for VS Code, built on `PDFium WASM` and `@embedpdf/*`.
 
 ## Install
 
-- VS Code Marketplace: [chocolatedesue.modern-pdf-preview](https://marketplace.visualstudio.com/items?itemName=chocolatedesue.modern-pdf-preview)
-- Open VSX: [chocolatedesue.modern-pdf-preview](https://open-vsx.org/extension/chocolatedesue/modern-pdf-preview)
+This extension is being migrated to:
+
+- Repository: [jenul-ferdinand/PDF-Annotated](https://github.com/jenul-ferdinand/PDF-Annotated)
+
+Marketplace publishing is not set up yet.
 
 ## Docs
 
@@ -50,8 +43,7 @@ Fast PDF preview for VS Code, built on `PDFium WASM` and `@embedpdf/*`.
 
 - [embed-pdf-viewer](https://github.com/embedpdf/embed-pdf-viewer)
 - [PDFium WASM](https://github.com/bblanchon/pdfium-binaries)
+- Derived from [chocolatedesue/vscode-pdf](https://github.com/chocolatedesue/vscode-pdf) under MIT
 - [mathematic-inc/vscode-pdf](https://github.com/mathematic-inc/vscode-pdf) as reference only
 
 License: MIT
-
-[vsc-marketplace]: https://marketplace.visualstudio.com/items?itemName=chocolatedesue.modern-pdf-preview

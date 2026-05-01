@@ -7,7 +7,7 @@ exports.activate = function (context) {
   context.subscriptions.push(providerDisposable);
 
   // Register command to force save
-  const commandDisposable = require('vscode').commands.registerCommand("modernPdfViewer.forceSave", () => {
+  const commandDisposable = require('vscode').commands.registerCommand("pdfAnnotated.forceSave", () => {
     PDFEdit.forceSave(context);
   });
   context.subscriptions.push(commandDisposable);

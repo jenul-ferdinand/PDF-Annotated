@@ -1,22 +1,22 @@
 {
-  "name": "modern-pdf-preview",
-  "displayName": "Modern PDF Preview (WASM)",
-  "description": "A high-performance PDF previewer for VS Code powered by WebAssembly. Feature-rich, secure, and fast.",
-  "publisher": "chocolatedesue",
+  "name": "pdf-annotated",
+  "displayName": "PDF Annotated",
+  "description": "A fast PDF previewer and annotation editor for VS Code powered by PDFium WebAssembly.",
+  "publisher": "jenul-ferdinand",
   "icon": "icon.png",
   "author": {
-    "name": "chocolatedesue"
+    "name": "jenul-ferdinand"
   },
-  "homepage": "https://github.com/chocolatedesue/vscode-pdf",
+  "homepage": "https://github.com/jenul-ferdinand/PDF-Annotated",
   "license": "MIT",
   "categories": [
     "Visualization",
     "Programming Languages"
   ],
   "repository": {
-    "url": "https://github.com/chocolatedesue/vscode-pdf"
+    "url": "https://github.com/jenul-ferdinand/PDF-Annotated"
   },
-  "version": "1.5.9",
+  "version": "0.1.0",
   "browser": "./dist/extension.browser.js",
   "main": "./dist/extension.node.js",
   "extensionKind": [
@@ -35,8 +35,8 @@
   "contributes": {
     "customEditors": [
       {
-        "viewType": "modernPdfViewer.PDFEdit",
-        "displayName": "Modern PDF Preview",
+        "viewType": "pdfAnnotated.PDFEdit",
+        "displayName": "PDF Annotated",
         "selector": [
           {
             "filenamePattern": "*.pdf"
@@ -46,9 +46,9 @@
       }
     ],
     "configuration": {
-      "title": "Modern PDF Preview",
+      "title": "PDF Annotated",
       "properties": {
-        "modernPdfViewer.defaultZoomLevel": {
+        "pdfAnnotated.defaultZoomLevel": {
           "type": "string",
           "default": "page-width",
           "enum": [
@@ -67,7 +67,7 @@
           ],
           "description": "The initial zoom level when opening a PDF file."
         },
-        "modernPdfViewer.defaultSpreadMode": {
+        "pdfAnnotated.defaultSpreadMode": {
           "type": "string",
           "default": "odd",
           "enum": [
@@ -77,7 +77,7 @@
           ],
           "description": "The initial spread mode when opening a PDF file."
         },
-        "modernPdfViewer.tabBar": {
+        "pdfAnnotated.tabBar": {
           "type": "string",
           "default": "never",
           "enum": [
@@ -92,23 +92,23 @@
   },
   "commands": [
     {
-      "command": "modernPdfViewer.forceSave",
+      "command": "pdfAnnotated.forceSave",
       "title": "Save PDF",
-      "category": "PDF Preview"
+      "category": "PDF Annotated"
     }
   ],
   "keybindings": [
     {
-      "command": "modernPdfViewer.forceSave",
+      "command": "pdfAnnotated.forceSave",
       "key": "ctrl+s",
       "mac": "cmd+s",
-      "when": "activeCustomEditorId == 'modernPdfViewer.PDFEdit'"
+      "when": "activeCustomEditorId == 'pdfAnnotated.PDFEdit'"
     },
     {
       "command": "workbench.action.closeActiveEditor",
       "key": "ctrl+w",
       "mac": "cmd+w",
-      "when": "activeCustomEditorId == 'modernPdfViewer.PDFEdit'"
+      "when": "activeCustomEditorId == 'pdfAnnotated.PDFEdit'"
     }
   ],
   "scripts": {

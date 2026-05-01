@@ -63,8 +63,8 @@ If direct publishing is needed:
 
 ```bash
 set -a; source .env
-bunx vsce publish -p "$VSCE_PAT" -i ./modern-pdf-preview-<version>.vsix --no-dependencies
-bunx ovsx publish -p "$OVSX_TOKEN" -i ./modern-pdf-preview-<version>.vsix
+bunx vsce publish -p "$VSCE_PAT" -i ./pdf-annotated-<version>.vsix --no-dependencies
+bunx ovsx publish -p "$OVSX_TOKEN" -i ./pdf-annotated-<version>.vsix
 ```
 
 ## Notes
