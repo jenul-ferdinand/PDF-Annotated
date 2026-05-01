@@ -71,6 +71,7 @@ export default class PDFEdit {
   static viewType = VIEW_TYPE;
   static globalContext = null;
   static htmlTemplateCache = null; // Cache for HTML template
+  static wasmBase64Cache = null; // Cache for PDFium WASM bytes encoded for webview transfer
 
   /**
    * Preview a PDF file from an API provider.
@@ -110,6 +111,31 @@ export default class PDFEdit {
     }
 
     return null;
+  }
+
+  #binaryToBase64(data) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength).toString("base64");
+    }
+
+    let binary = "";
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  }
+
+  async #getWasmBase64() {
+    if (!PDFEdit.wasmBase64Cache) {
+      const wasmPath = vscode.Uri.joinPath(this.context.extensionUri, "media", MEDIA_FILES.WASM);
+      const wasmData = await vscode.workspace.fs.readFile(wasmPath);
+      PDFEdit.wasmBase64Cache = this.#binaryToBase64(wasmData);
+      Logger.log(`[Cache] WASM binary loaded and encoded (${wasmData.byteLength} bytes)`);
+    }
+
+    return PDFEdit.wasmBase64Cache;
   }
 
   /**
@@ -629,7 +655,7 @@ export default class PDFEdit {
           Logger.show();
         } else if (selection === 'Report Issue') {
           vscode.env.openExternal(vscode.Uri.parse(
-            'https://github.com/chocolatedesue/vscode-pdf/issues/new'
+            'https://github.com/jenul-ferdinand/PDF-Annotated/issues/new'
           ));
         }
       });
@@ -662,7 +688,7 @@ export default class PDFEdit {
     const msg = {
       command,
       documentKey,
-      wasmUri: wasmUri.toString(true),
+      wasmUri: wasmUri.toString(),
       config: {
         ...getPdfConfiguration(),
         ...(previewOptions.config || {}),
@@ -677,9 +703,20 @@ export default class PDFEdit {
 
     Logger.log(`[View State] Sending ${command} payload to webview`);
 
-    if (dataProvider.uri) {
+    try {
+      msg.wasmData = await this.#getWasmBase64();
+    } catch (err) {
+      Logger.log(`[Warning] Failed to inline WASM data, falling back to webview URI: ${err}`);
+    }
+
+    const canInjectData =
+      dataProvider instanceof PDFDoc ||
+      typeof dataProvider.getRawData === "function" ||
+      typeof dataProvider.getFileData === "function";
+
+    if (dataProvider.uri && !canInjectData) {
       Logger.log(`Strategy: URI Mode (${command})`);
-      msg.pdfUri = panel.webview.asWebviewUri(dataProvider.uri).toString(true);
+      msg.pdfUri = panel.webview.asWebviewUri(dataProvider.uri).toString();
       panel.webview.postMessage(msg);
       return;
     }
@@ -696,9 +733,10 @@ export default class PDFEdit {
         data = await dataProvider.getFileData();
       }
 
-      msg.data = data;
+      msg.data = typeof data === "string" ? data : this.#binaryToBase64(data);
 
-      // Note: We do not use transferables here because 'data' may come from shared caches.
+      // Use base64 instead of webview local-resource URLs so VS Code's webview
+      // service worker is not in the PDF/WASM loading path.
       panel.webview.postMessage(msg);
     } catch (err) {
       Logger.log(`Error loading file data: ${err}`);

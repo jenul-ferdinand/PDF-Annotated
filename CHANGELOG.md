@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0] - 2026-05-01
+
+- Rebranded the extension as PDF Annotated.
+- Renamed VS Code contribution IDs, commands, and settings to the `pdfAnnotated` namespace.
+- Fixed VS Code 1.118 remote webview loading by sending PDFium WASM bytes through the extension host and creating a webview Blob URL.
+- Avoided blocked external font and stamp manifest requests in the webview.
+
 ## [1.5.8] - 2026-03-29
 
 - Added SDK preview options for per-preview config and initial view state.

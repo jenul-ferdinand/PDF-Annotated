@@ -67,9 +67,7 @@
       window.removeEventListener("keydown", handleKeyDown, true);
       observer.disconnect();
       window.removeEventListener("message", handleMessage);
-      if (pdfState.activeBlobUrl) {
-        URL.revokeObjectURL(pdfState.activeBlobUrl);
-      }
+      pdfState.disposeBlobUrls();
     };
   });
 </script>

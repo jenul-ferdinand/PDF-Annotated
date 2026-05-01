@@ -92,6 +92,16 @@ function getInitialTheme() {
   return "light";
 }
 
+function messageDataToUint8Array(data) {
+  if (data instanceof Uint8Array) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return new Uint8Array(data);
+  }
+  return new Uint8Array(base64ToArrayBuffer(data));
+}
+
 export const pdfState = $state({
   pdfSrc: null,
   wasmUrl: "",
@@ -100,6 +110,7 @@ export const pdfState = $state({
   themePreference: getInitialTheme(),
   messageConfig: null,
   activeBlobUrl: null,
+  activeWasmBlobUrl: null,
   viewerKey: 0,
   currentDocumentUri: null,
   currentDocumentKey: null,
@@ -160,7 +171,21 @@ export const pdfState = $state({
 
     this.currentDocumentKey = newDocKey;
     this.currentDocumentUri = newDocUri;
-    this.wasmUrl = message.wasmUri;
+    if (message.wasmData) {
+      if (!this.activeWasmBlobUrl) {
+        const wasmBuffer = messageDataToUint8Array(message.wasmData);
+        this.activeWasmBlobUrl = URL.createObjectURL(
+          new Blob([wasmBuffer], { type: "application/wasm" })
+        );
+      }
+      this.wasmUrl = this.activeWasmBlobUrl;
+    } else {
+      if (this.activeWasmBlobUrl) {
+        URL.revokeObjectURL(this.activeWasmBlobUrl);
+        this.activeWasmBlobUrl = null;
+      }
+      this.wasmUrl = message.wasmUri;
+    }
     this.messageConfig = message.config;
     this.error = null;
 
@@ -173,14 +198,7 @@ export const pdfState = $state({
       this.activeBlobUrl = null;
     }
     if (!src && message.data) {
-      let buffer;
-      if (message.data instanceof Uint8Array) {
-        buffer = message.data;
-      } else if (message.data instanceof ArrayBuffer) {
-        buffer = new Uint8Array(message.data);
-      } else {
-        buffer = new Uint8Array(base64ToArrayBuffer(message.data));
-      }
+      const buffer = messageDataToUint8Array(message.data);
 
       if (this.activeBlobUrl) {
         URL.revokeObjectURL(this.activeBlobUrl);
@@ -207,6 +225,18 @@ export const pdfState = $state({
     // are session-specific and become invalid after VSCode restarts.
     // The extension will always send a fresh URI when the webview is restored.
     this.syncViewState(this.persistedViewState, { notifyExtension: false });
+  },
+
+  disposeBlobUrls() {
+    if (this.activeBlobUrl) {
+      URL.revokeObjectURL(this.activeBlobUrl);
+      this.activeBlobUrl = null;
+    }
+
+    if (this.activeWasmBlobUrl) {
+      URL.revokeObjectURL(this.activeWasmBlobUrl);
+      this.activeWasmBlobUrl = null;
+    }
   },
 
   async handleSave(message) {

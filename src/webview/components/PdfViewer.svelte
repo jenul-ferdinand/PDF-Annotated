@@ -29,9 +29,19 @@
       wasmUrl: pdfState.wasmUrl,
       theme: { preference: pdfState.themePreference },
       tabBar: pdfState.messageConfig?.tabBar,
+      fontFallback: {
+        fonts: {},
+      },
+      fonts: {
+        ui: null,
+        signature: null,
+      },
       disabledCategories: ["print", "export", "redaction", "document"],
       annotations: {
         autoOpenLinks: false,
+      },
+      stamp: {
+        manifests: [],
       },
       render: {
         defaultImageType: "image/bmp",
