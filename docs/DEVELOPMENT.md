@@ -22,6 +22,19 @@ bunx webpack --watch
 
 ## Test
 
+Desktop integration:
+
+```bash
+bun run test:integration
+```
+
+This launches a real VS Code Extension Development Host, opens
+`test/fixtures/pdf-sample.pdf` with `pdfAnnotated.PDFEdit`, and waits for the
+webview to report `loaded`. It fails immediately on a viewer `error` status and
+times out if the viewer never finishes loading. Set `VSCODE_TEST_EXECUTABLE` to
+use a local VS Code build, or `VSCODE_TEST_VERSION` to run against a specific
+downloaded VS Code version.
+
 Web:
 
 ```bash

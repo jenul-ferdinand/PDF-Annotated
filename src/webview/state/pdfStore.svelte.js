@@ -117,6 +117,20 @@ export const pdfState = $state({
   persistedViewState: null,
   registry: null,
   container: null,
+  statusReportingEnabled: false,
+
+  reportViewerStatus(status, details = {}) {
+    if (!this.statusReportingEnabled) {
+      return;
+    }
+
+    vscodeService.postMessage({
+      command: "viewer-status",
+      status,
+      documentKey: this.currentDocumentKey,
+      ...details,
+    });
+  },
 
   updateTheme() {
     const newTheme = getInitialTheme();
@@ -219,6 +233,7 @@ export const pdfState = $state({
     } else {
       this.error = "Failed to resolve PDF source";
       this.loading = false;
+      this.reportViewerStatus("error", { message: this.error });
     }
 
     // Note: We do NOT persist pdfUri in state because asWebviewUri() tokens

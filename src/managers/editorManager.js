@@ -7,6 +7,13 @@
  *   changeDisposable?: import("vscode").Disposable | null,
  *   disposeDisposable?: import("vscode").Disposable | null,
  *   lastViewState?: Record<string, unknown> | null,
+ *   lastViewerStatus?: {
+ *     status: string,
+ *     documentUri: string,
+ *     documentKey?: string | null,
+ *     message?: string | null,
+ *     updatedAt: string
+ *   } | null,
  *   dataProvider?: unknown,
  *   pendingSave?: {
  *     requestId: string,

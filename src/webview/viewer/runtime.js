@@ -351,6 +351,8 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
 
     console.log("[Webview] PDF Viewer Ready with Registry");
     pdfState.registry = registry;
+    // EmbedPDF exposes this registry-ready callback as the closest stable loaded signal.
+    pdfState.reportViewerStatus("loaded");
 
     const scrollPlugin = registry.getPlugin("scroll");
     const zoomPlugin = registry.getPlugin("zoom");

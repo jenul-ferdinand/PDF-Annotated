@@ -14,9 +14,13 @@
 
     switch (message.command) {
       case "preview":
+        pdfState.statusReportingEnabled = !!message.viewerStatusEnabled;
+        pdfState.reportViewerStatus("preview-received");
         pdfState.setPreview(message);
         break;
       case "reload":
+        pdfState.statusReportingEnabled = !!message.viewerStatusEnabled;
+        pdfState.reportViewerStatus("preview-received");
         pdfState.setPreview(message, { forceReload: true });
         break;
       case "save":
@@ -25,6 +29,7 @@
       case "error":
         pdfState.error = message.error;
         pdfState.loading = false;
+        pdfState.reportViewerStatus("error", { message: message.error });
         break;
     }
   }

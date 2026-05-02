@@ -72,6 +72,35 @@ export default class PDFEdit {
   static globalContext = null;
   static htmlTemplateCache = null; // Cache for HTML template
   static wasmBase64Cache = null; // Cache for PDFium WASM bytes encoded for webview transfer
+  static lastViewerStatus = null;
+
+  static isViewerStatusEnabled(context) {
+    return (
+      context?.extensionMode === vscode.ExtensionMode.Test ||
+      context?.extensionMode === vscode.ExtensionMode.Development
+    );
+  }
+
+  static getLastViewerStatus(uri) {
+    const uriString = typeof uri === "string" ? uri : uri?.toString?.();
+
+    if (uriString) {
+      const entry = activeEditors.get(uriString);
+      return entry?.lastViewerStatus || (
+        PDFEdit.lastViewerStatus?.documentUri === uriString
+          ? PDFEdit.lastViewerStatus
+          : null
+      );
+    }
+
+    for (const entry of activeEditors.values()) {
+      if (entry.panel?.active && entry.lastViewerStatus) {
+        return entry.lastViewerStatus;
+      }
+    }
+
+    return PDFEdit.lastViewerStatus;
+  }
 
   /**
    * Preview a PDF file from an API provider.
@@ -111,6 +140,33 @@ export default class PDFEdit {
     }
 
     return null;
+  }
+
+  #isViewerStatusEnabled() {
+    return PDFEdit.isViewerStatusEnabled(this.context);
+  }
+
+  #recordViewerStatus(uriString, status, details = {}) {
+    if (!this.#isViewerStatusEnabled() || !status) {
+      return;
+    }
+
+    const entry = activeEditors.get(uriString);
+    const nextStatus = {
+      status,
+      documentUri: uriString,
+      documentKey: details.documentKey || entry?.stateKey || null,
+      message: details.message || details.error || null,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (entry) {
+      entry.lastViewerStatus = nextStatus;
+    }
+    PDFEdit.lastViewerStatus = nextStatus;
+
+    const suffix = nextStatus.message ? `: ${nextStatus.message}` : "";
+    Logger.log(`[Viewer Status] ${status} for ${uriString}${suffix}`);
   }
 
   #binaryToBase64(data) {
@@ -440,6 +496,7 @@ export default class PDFEdit {
       changeDisposable: existingEntry?.changeDisposable || null,
       disposeDisposable: existingEntry?.disposeDisposable || null,
       lastViewState: existingEntry?.lastViewState || this.viewStateManager.getPersisted(uriString),
+      lastViewerStatus: existingEntry?.lastViewerStatus || null,
       dataProvider: document,
       pendingSave: existingEntry?.pendingSave || null
     });
@@ -565,9 +622,16 @@ export default class PDFEdit {
       // Message Handling
       const messageDisposable = panel.webview.onDidReceiveMessage(async (message) => {
         if (message.command === 'ready') {
+          this.#recordViewerStatus(uriString, "mounted", { documentKey: stateKey });
           await this.handleWebviewReady(dataProvider, panel, previewOptions);
         } else if (message.command === 'log') {
           Logger.log(`[Webview] ${message.message}`);
+        } else if (message.command === 'viewer-status') {
+          this.#recordViewerStatus(uriString, message.status, {
+            documentKey: message.documentKey || stateKey,
+            message: message.message,
+            error: message.error,
+          });
         } else if (message.command === 'error') {
           if (!this.#rejectPendingSave(uriString, message.requestId, message.error)) {
             Logger.log(`[Webview Error] ${message.error}`);
@@ -610,6 +674,7 @@ export default class PDFEdit {
         changeDisposable: existingEntry ? existingEntry.changeDisposable : null,
         disposeDisposable: existingEntry ? existingEntry.disposeDisposable : null,
         lastViewState: existingEntry ? existingEntry.lastViewState : this.viewStateManager.getPersisted(uriString),
+        lastViewerStatus: existingEntry ? existingEntry.lastViewerStatus : null,
         dataProvider,
         pendingSave: existingEntry ? existingEntry.pendingSave : null
       });
@@ -620,6 +685,10 @@ export default class PDFEdit {
     } catch (e) {
       const duration = Date.now() - startTime;
       Logger.log(`[Performance] Webview setup failed after ${duration}ms: ${e.stack || e}`);
+      this.#recordViewerStatus(uriString, "error", {
+        documentKey: stateKey,
+        message: e.message || String(e),
+      });
 
       // Classify error type and provide helpful suggestions
       let errorType = 'Unknown Error';
@@ -689,6 +758,7 @@ export default class PDFEdit {
       command,
       documentKey,
       wasmUri: wasmUri.toString(),
+      viewerStatusEnabled: this.#isViewerStatusEnabled(),
       config: {
         ...getPdfConfiguration(),
         ...(previewOptions.config || {}),
@@ -740,6 +810,10 @@ export default class PDFEdit {
       panel.webview.postMessage(msg);
     } catch (err) {
       Logger.log(`Error loading file data: ${err}`);
+      this.#recordViewerStatus(uriString, "error", {
+        documentKey,
+        message: err.message || String(err),
+      });
       panel.webview.postMessage({
         command: 'error',
         error: err.message || String(err)

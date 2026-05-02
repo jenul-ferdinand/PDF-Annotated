@@ -28,7 +28,7 @@ export class PDFDoc {
   dispose() {
     this._inFlightRead = null;
     this._onDidDelete.fire(this.uri);
-    this._disposeAll();
+    this.#disposeAll();
   }
 
   #disposeAll() {

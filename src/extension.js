@@ -12,6 +12,14 @@ exports.activate = function (context) {
   });
   context.subscriptions.push(commandDisposable);
 
+  if (PDFEdit.isViewerStatusEnabled(context)) {
+    const viewerStatusDisposable = require('vscode').commands.registerCommand(
+      "pdfAnnotated.test.getLastViewerStatus",
+      (uri) => PDFEdit.getLastViewerStatus(uri)
+    );
+    context.subscriptions.push(viewerStatusDisposable);
+  }
+
   return {
     getV1Api: function () {
       return PdfViewerApi;
