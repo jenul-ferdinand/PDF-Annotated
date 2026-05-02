@@ -1,34 +1,14 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-lerna-debug.log*
-.pnpm-debug.log*
-
-# Compiled binary addons (https://nodejs.org/api/addons.html)
-build/Release
-
-# Dependency directories
+# dep storag
 node_modules/
 jspm_packages/
 
-# TypeScript cache
-*.tsbuildinfo
-
-# dotenv environment variable files
+# environment vars
 .env
 
-# yarn v2
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
-.pnp.*
-
-# Agent and Automation
+# coding agents
 .agent/
+.agents/
+.codex/
 .claude/
 AGENTS.md
 CLAUDE.md
