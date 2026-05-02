@@ -504,16 +504,7 @@ export default class PDFEdit implements vscode.CustomEditorProvider<PDFDoc> {
         } else if (message.command === 'viewer-state-changed') {
           const nextViewState = message.viewState || null;
           const incomingStateKey = message.documentKey || stateKey;
-          this.viewStateManager.updateHot(incomingStateKey, nextViewState);
-          const entry = editorRegistry.get(uriString);
-          if (entry) {
-            entry.lastViewState = nextViewState;
-          }
-          if (message.flush) {
-            await this.viewStateManager.flush(incomingStateKey);
-          } else {
-            this.viewStateManager.scheduleCheckpoint(incomingStateKey);
-          }
+          await this.viewStateManager.record(incomingStateKey, uriString, nextViewState, { flush: message.flush });
         } else if (message.command === "open-link") {
           await this.#handleOpenLink(message, uri);
         } else if (message.command === 'dirty') {

@@ -20,94 +20,92 @@ export class ViewStateManager {
     this.context = context;
   }
 
-  #getViewStateKey(uriString: string): string {
-    return `${VIEW_STATE_STORAGE_PREFIX}${uriString}`;
+  #getViewStateKey(stateKey: string): string {
+    return `${VIEW_STATE_STORAGE_PREFIX}${stateKey}`;
   }
 
-  #clearCheckpointTimer(uriString: string): void {
-    const existingTimer = viewStateCheckpointTimers.get(uriString);
+  #clearCheckpointTimer(stateKey: string): void {
+    const existingTimer = viewStateCheckpointTimers.get(stateKey);
     if (existingTimer) {
       clearTimeout(existingTimer);
-      viewStateCheckpointTimers.delete(uriString);
+      viewStateCheckpointTimers.delete(stateKey);
     }
   }
 
-  getPersisted(uriString: string): PdfViewState | null {
-    if (!uriString || uriString === "unknown-uri") {
+  getPersisted(stateKey: string): PdfViewState | null {
+    if (!stateKey || stateKey === "unknown-uri") {
       return null;
     }
 
-    if (viewStateMemoryCache.has(uriString)) {
-      return viewStateMemoryCache.get(uriString) ?? null;
+    if (viewStateMemoryCache.has(stateKey)) {
+      return viewStateMemoryCache.get(stateKey) ?? null;
     }
 
-    const persistedViewState = this.context.workspaceState.get<PdfViewState | null>(this.#getViewStateKey(uriString), null) ?? null;
-    lastCheckpointedViewStateCache.set(uriString, persistedViewState);
+    const persistedViewState = this.context.workspaceState.get<PdfViewState | null>(this.#getViewStateKey(stateKey), null) ?? null;
+    lastCheckpointedViewStateCache.set(stateKey, persistedViewState);
     return persistedViewState;
   }
 
-  updateHot(uriString: string, viewState: PdfViewState | null | undefined): void {
-    if (!uriString || uriString === "unknown-uri") {
+  async record(stateKey: string, uriString: string, state: PdfViewState | null, options?: { flush?: boolean }): Promise<void> {
+    if (!stateKey || stateKey === "unknown-uri") {
       return;
     }
 
-    const normalizedViewState = viewState || null;
-    viewStateMemoryCache.set(uriString, normalizedViewState);
+    const normalizedViewState = state || null;
+    viewStateMemoryCache.set(stateKey, normalizedViewState);
 
     const editorEntry = editorRegistry.get(uriString);
     if (editorEntry) {
       editorEntry.lastViewState = normalizedViewState;
     }
+
+    if (options?.flush) {
+      await this.flush(stateKey);
+    } else {
+      this.#scheduleCheckpoint(stateKey);
+    }
   }
 
-  async flush(uriString: string): Promise<void> {
-    if (!uriString || uriString === "unknown-uri") {
+  async flush(stateKey: string): Promise<void> {
+    if (!stateKey || stateKey === "unknown-uri") {
       return;
     }
 
-    this.#clearCheckpointTimer(uriString);
+    this.#clearCheckpointTimer(stateKey);
 
-    const normalizedViewState = viewStateMemoryCache.get(uriString) || null;
-    const lastCheckpointedViewState = lastCheckpointedViewStateCache.get(uriString);
+    const normalizedViewState = viewStateMemoryCache.get(stateKey) || null;
+    const lastCheckpointedViewState = lastCheckpointedViewStateCache.get(stateKey);
     if (areViewStatesEqual(lastCheckpointedViewState, normalizedViewState)) {
       return;
     }
 
     Logger.log(`[View State] Checkpointing updated viewer state`);
-    await this.context.workspaceState.update(this.#getViewStateKey(uriString), normalizedViewState);
-    lastCheckpointedViewStateCache.set(uriString, normalizedViewState);
+    await this.context.workspaceState.update(this.#getViewStateKey(stateKey), normalizedViewState);
+    lastCheckpointedViewStateCache.set(stateKey, normalizedViewState);
   }
 
-  scheduleCheckpoint(uriString: string): void {
-    if (!uriString || uriString === "unknown-uri") {
+  #scheduleCheckpoint(stateKey: string): void {
+    if (!stateKey || stateKey === "unknown-uri") {
       return;
     }
 
-    this.#clearCheckpointTimer(uriString);
+    this.#clearCheckpointTimer(stateKey);
     viewStateCheckpointTimers.set(
-      uriString,
+      stateKey,
       setTimeout(() => {
-        viewStateCheckpointTimers.delete(uriString);
-        void this.flush(uriString);
+        viewStateCheckpointTimers.delete(stateKey);
+        void this.flush(stateKey);
       }, VIEW_STATE_CHECKPOINT_DELAY)
     );
   }
 
-  clearTimer(uriString: string): void {
-    if (!uriString || uriString === "unknown-uri") {
+  disposeUri(stateKey: string): void {
+    if (!stateKey || stateKey === "unknown-uri") {
       return;
     }
 
-    this.#clearCheckpointTimer(uriString);
-  }
-
-  disposeUri(uriString: string): void {
-    if (!uriString || uriString === "unknown-uri") {
-      return;
-    }
-
-    this.#clearCheckpointTimer(uriString);
-    viewStateMemoryCache.delete(uriString);
-    lastCheckpointedViewStateCache.delete(uriString);
+    this.#clearCheckpointTimer(stateKey);
+    viewStateMemoryCache.delete(stateKey);
+    lastCheckpointedViewStateCache.delete(stateKey);
   }
 }
