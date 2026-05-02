@@ -115,6 +115,8 @@
     "build": "webpack",
     "package": "sh scripts/package.sh",
     "deploy": "sh scripts/publish.sh",
+    "test": "bun run test:integration",
+    "test:integration": "bun run build && node ./test/run-integration.js",
     "test-web": "vscode-test-web --extensionDevelopmentPath=. .",
     "test-web-headless": "vscode-test-web --extensionDevelopmentPath=. --headless ."
   },
@@ -122,6 +124,7 @@
     "@actions/core": "^3.0.0",
     "@embedpdf/svelte-pdf-viewer": "^2.13.0",
     "@types/vscode": "^1.75.0",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/test-web": "^0.0.80",
     "@vscode/vsce": "^3.7.1",
     "css-loader": "^7.1.4",
