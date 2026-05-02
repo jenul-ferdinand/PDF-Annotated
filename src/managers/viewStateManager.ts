@@ -1,6 +1,6 @@
 import type * as vscode from "vscode";
 import Logger from "../services/logger";
-import { activeEditors } from "./editorManager";
+import { editorRegistry } from "./editorRegistry";
 import type { PdfViewState } from "../types";
 
 const VIEW_STATE_STORAGE_PREFIX = "pdfAnnotated.viewState:";
@@ -54,7 +54,7 @@ export class ViewStateManager {
     const normalizedViewState = viewState || null;
     viewStateMemoryCache.set(uriString, normalizedViewState);
 
-    const editorEntry = activeEditors.get(uriString);
+    const editorEntry = editorRegistry.get(uriString);
     if (editorEntry) {
       editorEntry.lastViewState = normalizedViewState;
     }

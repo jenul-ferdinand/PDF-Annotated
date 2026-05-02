@@ -9,7 +9,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Register command to force save
   const commandDisposable = vscode.commands.registerCommand("pdfAnnotated.forceSave", () => {
-    void PDFEdit.forceSave(context);
+    void PDFEdit.forceSave();
   });
   context.subscriptions.push(commandDisposable);
 
