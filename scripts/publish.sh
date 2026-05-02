@@ -5,9 +5,6 @@ if [ -f .env ]; then
   export $(cat .env | xargs)
 fi
 
-# Ensure fresh build before publishing
-bun run build
-
 # VS Code Marketplace
 if [ -z "$VSCE_PAT" ]; then
   echo "Error: VSCE_PAT is not set in .env file."
@@ -17,7 +14,7 @@ fi
 
 echo "Publishing to VS Code Marketplace..."
 # Uses @vscode/vsce from devDependencies
-bunx vsce publish -p "$VSCE_PAT" "$@"
+bunx vsce publish --no-dependencies -p "$VSCE_PAT" "$@"
 
 # Open VSX Registry
 if [ -n "$OVSX_TOKEN" ]; then

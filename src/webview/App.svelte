@@ -5,10 +5,15 @@
   import PdfViewer from "./components/PdfViewer.svelte";
   import { pdfState } from "./state/pdfStore.svelte.js";
   import { vscodeService } from "./services/vscode.js";
+  import type { ExtensionToWebviewMessage } from "../types";
+
+  function isExtensionMessage(value: unknown): value is ExtensionToWebviewMessage {
+    return typeof value === "object" && value !== null && "command" in value;
+  }
 
   async function handleMessage(event: MessageEvent) {
     const message = event.data;
-    if (!message || !message.command) return;
+    if (!isExtensionMessage(message)) return;
 
     console.log("[Webview] Received message command:", message.command);
 

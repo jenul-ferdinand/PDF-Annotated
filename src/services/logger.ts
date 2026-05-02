@@ -1,22 +1,22 @@
-const vscode = require("vscode");
+import * as vscode from "vscode";
 import { OUTPUT_CHANNEL_NAME } from "../constants/index.js";
 
 class Logger {
-    static _channel = null;
+    private static _channel: vscode.OutputChannel | null = null;
 
-    static get channel() {
+    static get channel(): vscode.OutputChannel {
         if (!this._channel) {
             this._channel = vscode.window.createOutputChannel(OUTPUT_CHANNEL_NAME);
         }
         return this._channel;
     }
 
-    static log(message) {
+    static log(message: string) {
         const timestamp = new Date().toLocaleTimeString();
         this.channel.appendLine(`[${timestamp}] ${message}`);
     }
 
-    static logPerformance(operation, durationMs, metadata = {}) {
+    static logPerformance(operation: string, durationMs: number, metadata: Record<string, unknown> = {}) {
         const metaStr = Object.keys(metadata).length
             ? ` | ${JSON.stringify(metadata)}`
             : '';
@@ -29,4 +29,3 @@ class Logger {
 }
 
 export default Logger;
-

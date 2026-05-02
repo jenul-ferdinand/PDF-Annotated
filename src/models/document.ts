@@ -1,15 +1,26 @@
+import * as vscode from "vscode";
 import Logger from "../services/logger";
-const vscode = require("vscode");
+import type { PdfDataProvider } from "../types";
 
-/**
- * @implements {import("../api/index").PdfFileDataProvider}
- */
-export class PDFDoc {
-  /**
-   * @param {vscode.Uri} uri
-   * @param {{ backupUri?: vscode.Uri | null, initialData?: Uint8Array | null }} [options]
-   */
-  constructor(uri, options = {}) {
+interface PDFDocOptions {
+  backupUri?: vscode.Uri | null;
+  initialData?: Uint8Array | null;
+}
+
+export class PDFDoc implements vscode.CustomDocument, PdfDataProvider {
+  private _uri: vscode.Uri;
+  private _backupUri: vscode.Uri | null;
+  private _initialData: Uint8Array | null;
+  private _inFlightRead: Promise<Uint8Array> | null;
+  private _disposables: vscode.Disposable[];
+  private _ignoreChangesUntil: number;
+  private _onDidDelete: vscode.EventEmitter<vscode.Uri>;
+  private _onDidChange: vscode.EventEmitter<vscode.Uri>;
+
+  readonly onDidDelete: vscode.Event<vscode.Uri>;
+  readonly onDidChange: vscode.Event<vscode.Uri>;
+
+  constructor(uri: vscode.Uri, options: PDFDocOptions = {}) {
     this._uri = uri;
     this._backupUri = options.backupUri || null;
     this._initialData = options.initialData || null;
@@ -25,13 +36,13 @@ export class PDFDoc {
     this.#registerWatcher();
   }
 
-  dispose() {
+  dispose(): void {
     this._inFlightRead = null;
     this._onDidDelete.fire(this.uri);
     this.#disposeAll();
   }
 
-  #disposeAll() {
+  #disposeAll(): void {
     for (const disposable of this._disposables) {
       try {
         disposable.dispose();
@@ -42,7 +53,7 @@ export class PDFDoc {
     this._disposables = [];
   }
 
-  #registerWatcher() {
+  #registerWatcher(): void {
     try {
       const lastSlash = this.uri.path.lastIndexOf("/");
       const baseUri = this.uri.with({
@@ -58,7 +69,7 @@ export class PDFDoc {
         new vscode.RelativePattern(baseUri, fileName)
       );
 
-      const onChange = (changedUri) => {
+      const onChange = (changedUri: vscode.Uri) => {
         if (changedUri.toString() === this.uri.toString()) {
           if (Date.now() < this._ignoreChangesUntil) {
             Logger.log(`[Watcher] Ignoring self-triggered change for ${this.uri.toString()}`);
@@ -73,7 +84,7 @@ export class PDFDoc {
         watcher,
         watcher.onDidChange(onChange),
         watcher.onDidCreate(onChange),
-        watcher.onDidDelete((deletedUri) => {
+        watcher.onDidDelete((deletedUri: vscode.Uri) => {
           if (deletedUri.toString() === this.uri.toString()) {
             this._onDidDelete.fire(deletedUri);
           }
@@ -86,24 +97,20 @@ export class PDFDoc {
     }
   }
 
-  get uri() {
+  get uri(): vscode.Uri {
     return this._uri;
   }
 
-  markPendingWrite(durationMs = 1500) {
+  markPendingWrite(durationMs = 1500): void {
     this._ignoreChangesUntil = Date.now() + durationMs;
   }
 
-  clearTransientSource() {
+  clearTransientSource(): void {
     this._backupUri = null;
     this._initialData = null;
   }
 
-  /**
-   * Reads the file data with concurrency protection.
-   * @returns {Promise<Uint8Array>}
-   */
-  async getFileData() {
+  async getFileData(): Promise<Uint8Array> {
     // If already reading, return the existing promise
     if (this._inFlightRead) {
       return this._inFlightRead;
@@ -127,7 +134,7 @@ export class PDFDoc {
             }
           } catch (e) {
             // Ignore stat errors, fallback to try reading
-            if (e.message && e.message.includes('File is too large')) {
+            if (e instanceof Error && e.message.includes('File is too large')) {
               throw e;
             }
           }

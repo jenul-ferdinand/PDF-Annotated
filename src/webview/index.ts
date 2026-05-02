@@ -1,4 +1,3 @@
-/* global __webpack_public_path__:writable */
 if (window.mediaUri) {
     __webpack_public_path__ = window.mediaUri + '/';
 }

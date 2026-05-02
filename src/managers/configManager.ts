@@ -1,27 +1,24 @@
-const vscode = require('vscode');
+import * as vscode from "vscode";
+import type { PdfWebviewConfig } from "../types";
 
-/**
- * Fetches and maps configurations for the PDF webview.
- * @returns {Object}
- */
-export function getPdfConfiguration() {
+export function getPdfConfiguration(): PdfWebviewConfig {
     const config = vscode.workspace.getConfiguration('pdfAnnotated');
 
     // Map VS Code enum values to @embedpdf/snippet values
-    const zoomMap = {
+    const zoomMap: Record<string, string> = {
         'page-width': 'fit-width',
         'page-fit': 'fit-page',
         'page-height': 'fit-page', // fit-height is not supported by default, fallback to fit-page
         'auto': 'automatic'
     };
 
-    const spreadMap = {
+    const spreadMap: Record<string, string> = {
         'none': 'none',
         'odd': 'odd',
         'even': 'even'
     };
 
-    let zoomLevel = config.get('defaultZoomLevel', 'page-width');
+    let zoomLevel: string | number = config.get('defaultZoomLevel', 'page-width');
     const spreadMode = config.get('defaultSpreadMode', 'none');
 
     const tabBar = config.get('tabBar', 'never');

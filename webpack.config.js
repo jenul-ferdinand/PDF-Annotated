@@ -1,17 +1,49 @@
 const path = require("path");
 const webpack = require("webpack");
 
+const tsRule = {
+  test: /(?<!\.svelte)\.ts$/,
+  exclude: /node_modules/,
+  use: {
+    loader: "ts-loader",
+    options: {
+      configFile: "tsconfig.json",
+    },
+  },
+};
+
+const svelteLoaderOptions = {
+  compilerOptions: {
+    dev: false,
+  },
+  emitCss: false,
+  hotReload: false,
+};
+
+const typescriptResolve = {
+  extensions: [".ts", ".mjs", ".js", ".svelte", ".svelte.ts"],
+  extensionAlias: {
+    ".js": [".ts", ".js"],
+    ".mjs": [".mts", ".mjs"],
+  },
+};
+
 const extensionNodeConfig = {
   entry: {
-    extension: "./src/extension.js",
+    extension: "./src/extension.ts",
   },
   output: {
     filename: "[name].node.js",
     path: path.resolve(__dirname, "dist"),
+    libraryTarget: "commonjs2",
   },
   devtool: "source-map",
   externals: {
     vscode: "commonjs vscode",
+  },
+  resolve: typescriptResolve,
+  module: {
+    rules: [tsRule],
   },
   mode: "production",
   target: "node",
@@ -22,7 +54,7 @@ const extensionNodeConfig = {
 
 const extensionWebConfig = {
   entry: {
-    extension: "./src/extension.js",
+    extension: "./src/extension.ts",
   },
   output: {
     filename: "[name].browser.js",
@@ -34,10 +66,14 @@ const extensionWebConfig = {
     vscode: "commonjs vscode",
   },
   resolve: {
+    ...typescriptResolve,
     fallback: {
       path: false,
       fs: false,
     },
+  },
+  module: {
+    rules: [tsRule],
   },
   mode: "production",
   target: "webworker",
@@ -48,7 +84,7 @@ const extensionWebConfig = {
 
 const webviewConfig = {
   entry: {
-    webview: "./src/webview/index.js",
+    webview: "./src/webview/index.ts",
   },
   output: {
     filename: "webview-bundle.js",
@@ -56,23 +92,33 @@ const webviewConfig = {
     publicPath: "auto",
   },
   resolve: {
-    extensions: [".mjs", ".js", ".svelte"],
+    ...typescriptResolve,
     mainFields: ["svelte", "browser", "module", "main"],
     conditionNames: ["svelte", "browser", "import"],
   },
   module: {
     rules: [
       {
+        test: /\.svelte\.ts$/,
+        use: [
+          {
+            loader: "svelte-loader",
+            options: svelteLoaderOptions,
+          },
+          {
+            loader: "ts-loader",
+            options: {
+              configFile: "tsconfig.json",
+            },
+          },
+        ],
+      },
+      tsRule,
+      {
         test: /\.(svelte|svelte\.js)$/,
         use: {
           loader: "svelte-loader",
-          options: {
-            compilerOptions: {
-              dev: false,
-            },
-            emitCss: false,
-            hotReload: false,
-          },
+          options: svelteLoaderOptions,
         },
       },
       {

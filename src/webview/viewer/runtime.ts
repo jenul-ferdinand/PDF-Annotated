@@ -1,28 +1,65 @@
+import type {
+  EmbedPdfContainer,
+  PluginRegistry,
+  RotateCapability,
+  ScrollCapability,
+  ScrollStrategy,
+  SpreadCapability,
+  SpreadMode,
+  UICapability,
+  ZoomCapability,
+  ZoomLevel,
+} from "@embedpdf/snippet";
+import type { AnnotationCapability } from "@embedpdf/plugin-annotation";
+import type { Rotation } from "@embedpdf/models";
 import { buildViewState, getPageCoordinates } from "./viewState.js";
+import type {
+  PdfOpenLinkResult,
+  PdfOpenLinkTarget,
+  PdfSidebarState,
+  PdfStateStore,
+  PdfViewState,
+  VsCodeWebviewApi,
+} from "../../types";
 
 const RESTORE_SETTLE_MS = 700;
 
-export function createViewerRuntime({ pdfState, vscodeService }) {
-  let registryDisposables = [];
-  let extensionSyncTimeout;
-  let checkpointSyncTimeout;
-  let settleTimeout;
-  let restoreFinalizeTimeout;
-  let restoreRetryTimeout;
-  let scrollSyncTimeout;
+type ViewerUICapability = UICapability & {
+  getState?: () => { sidebarTabs?: Record<string, string> };
+};
+
+interface ViewerRuntimeOptions {
+  pdfState: PdfStateStore;
+  vscodeService: Pick<VsCodeWebviewApi, "postMessage">;
+}
+
+interface QueueViewStateOptions {
+  flush?: boolean;
+  immediate?: boolean;
+  force?: boolean;
+}
+
+export function createViewerRuntime({ pdfState, vscodeService }: ViewerRuntimeOptions) {
+  let registryDisposables: Array<() => void> = [];
+  let extensionSyncTimeout: number | undefined;
+  let checkpointSyncTimeout: number | undefined;
+  let settleTimeout: number | undefined;
+  let restoreFinalizeTimeout: number | undefined;
+  let restoreRetryTimeout: number | undefined;
+  let scrollSyncTimeout: number | undefined;
   let restoreCompleted = false;
   let restoreAttemptCount = 0;
   let isRestoring = false;
   let settleUntil = 0;
-  let lastScrollStrategy = null;
-  let lastSidebarState = null;
+  let lastScrollStrategy: string | null = null;
+  let lastSidebarState: PdfSidebarState | null = null;
 
-  let scrollCapability = null;
-  let zoomCapability = null;
-  let spreadCapability = null;
-  let rotateCapability = null;
-  let uiCapability = null;
-  let annotationCapability = null;
+  let scrollCapability: ScrollCapability | null = null;
+  let zoomCapability: ZoomCapability | null = null;
+  let spreadCapability: SpreadCapability | null = null;
+  let rotateCapability: RotateCapability | null = null;
+  let uiCapability: ViewerUICapability | null = null;
+  let annotationCapability: AnnotationCapability | null = null;
 
   function clearTimers() {
     clearTimeout(extensionSyncTimeout);
@@ -61,7 +98,7 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
     resetRuntimeState();
   }
 
-  function buildCurrentViewState(overrides = {}) {
+  function buildCurrentViewState(overrides: Partial<PdfViewState> = {}): PdfViewState {
     return buildViewState({
       baseViewState: pdfState.persistedViewState,
       scrollCapability,
@@ -75,7 +112,7 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
     });
   }
 
-  function queueViewStateSync(overrides = {}, options = {}) {
+  function queueViewStateSync(overrides: Partial<PdfViewState> = {}, options: QueueViewStateOptions = {}): void {
     const { flush = false, immediate = false, force = false } = options;
     const settlingDelay = Math.max(0, settleUntil - Date.now());
 
@@ -155,19 +192,19 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
       }
 
       if (savedViewState.scrollStrategy && scrollCapability) {
-        scrollCapability.setScrollStrategy(savedViewState.scrollStrategy);
+        scrollCapability.setScrollStrategy(savedViewState.scrollStrategy as ScrollStrategy);
       }
 
       if (savedViewState.spreadMode && spreadCapability) {
-        spreadCapability.setSpreadMode(savedViewState.spreadMode);
+        spreadCapability.setSpreadMode(savedViewState.spreadMode as SpreadMode);
       }
 
       if (typeof savedViewState.rotation === "number" && rotateCapability) {
-        rotateCapability.setRotation(savedViewState.rotation);
+        rotateCapability.setRotation(savedViewState.rotation as Rotation);
       }
 
       if (savedViewState.zoomLevel !== undefined && savedViewState.zoomLevel !== null && zoomCapability) {
-        zoomCapability.requestZoom(savedViewState.zoomLevel);
+        zoomCapability.requestZoom(savedViewState.zoomLevel as ZoomLevel);
       }
 
       if (savedViewState.pageNumber && scrollCapability) {
@@ -333,20 +370,20 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
 
           vscodeService.postMessage({
             command: "open-link",
-            result: event.result,
-            target: event.target,
+            result: event.result as PdfOpenLinkResult,
+            target: event.target as unknown as PdfOpenLinkTarget,
           });
         })
       );
     }
   }
 
-  function handleInit(container) {
+  function handleInit(container: EmbedPdfContainer): void {
     console.log("[Webview] PDF Viewer Initialized");
     pdfState.container = container;
   }
 
-  function handleReady(registry) {
+  function handleReady(registry: PluginRegistry): void {
     clearRegistryDisposables();
 
     console.log("[Webview] PDF Viewer Ready with Registry");
@@ -361,12 +398,12 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
     const uiPlugin = registry.getPlugin("ui");
     const annotationPlugin = registry.getPlugin("annotation");
 
-    scrollCapability = scrollPlugin?.provides() || null;
-    zoomCapability = zoomPlugin?.provides() || null;
-    spreadCapability = spreadPlugin?.provides() || null;
-    rotateCapability = rotatePlugin?.provides() || null;
-    uiCapability = uiPlugin?.provides() || null;
-    annotationCapability = annotationPlugin?.provides() || null;
+    scrollCapability = (scrollPlugin?.provides?.() as ScrollCapability | undefined) || null;
+    zoomCapability = (zoomPlugin?.provides?.() as ZoomCapability | undefined) || null;
+    spreadCapability = (spreadPlugin?.provides?.() as SpreadCapability | undefined) || null;
+    rotateCapability = (rotatePlugin?.provides?.() as RotateCapability | undefined) || null;
+    uiCapability = (uiPlugin?.provides?.() as ViewerUICapability | undefined) || null;
+    annotationCapability = (annotationPlugin?.provides?.() as AnnotationCapability | undefined) || null;
 
     bindScrollEvents();
     bindCapabilityEvents();
@@ -376,7 +413,7 @@ export function createViewerRuntime({ pdfState, vscodeService }) {
     }
   }
 
-  function destroy() {
+  function destroy(): void {
     queueViewStateSync({}, { flush: true, force: true });
     clearRegistryDisposables();
   }

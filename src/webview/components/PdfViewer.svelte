@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { PDFViewer, ZoomMode, SpreadMode } from "@embedpdf/svelte-pdf-viewer";
+  import { PDFViewer, ZoomMode, SpreadMode, ScrollStrategy, type ZoomLevel } from "@embedpdf/svelte-pdf-viewer";
   import { pdfState } from "../state/pdfStore.svelte.js";
   import { vscodeService } from "../services/vscode.js";
   import { createViewerRuntime } from "../viewer/runtime.js";
@@ -25,7 +25,7 @@
     oninit={viewerRuntime.handleInit}
     onready={viewerRuntime.handleReady}
     config={{
-      src: pdfState.pdfSrc,
+      src: pdfState.pdfSrc ?? undefined,
       wasmUrl: pdfState.wasmUrl,
       theme: { preference: pdfState.themePreference },
       tabBar: pdfState.messageConfig?.tabBar,
@@ -47,7 +47,7 @@
         defaultImageType: "image/bmp",
       },
       scroll: {
-        defaultStrategy: initialViewState.scrollStrategy || pdfState.messageConfig?.scrollStrategy || "vertical",
+        defaultStrategy: (initialViewState.scrollStrategy || pdfState.messageConfig?.scrollStrategy || ScrollStrategy.Vertical) as ScrollStrategy,
       },
       rotation: {
         defaultRotation:
@@ -56,10 +56,10 @@
             : pdfState.messageConfig?.rotation || 0,
       },
       spread: {
-        defaultSpreadMode: initialViewState.spreadMode || pdfState.messageConfig?.spreadMode || SpreadMode.Odd,
+        defaultSpreadMode: (initialViewState.spreadMode || pdfState.messageConfig?.spreadMode || SpreadMode.Odd) as SpreadMode,
       },
       zoom: {
-        defaultZoomLevel: initialViewState.zoomLevel || pdfState.messageConfig?.zoomLevel || ZoomMode.FitWidth,
+        defaultZoomLevel: (initialViewState.zoomLevel || pdfState.messageConfig?.zoomLevel || ZoomMode.FitWidth) as ZoomLevel,
       },
     }}
     style="width: 100%; height: 100%;"

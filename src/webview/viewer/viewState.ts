@@ -1,4 +1,33 @@
-export function getPageCoordinates(metrics, pageNumber) {
+import type {
+  RotateCapability,
+  ScrollCapability,
+  ScrollMetrics,
+  SpreadCapability,
+  UICapability,
+  ZoomCapability,
+} from "@embedpdf/snippet";
+import type { PdfPageCoordinates, PdfSidebarState, PdfViewState } from "../../types";
+
+type ViewerUICapability = UICapability & {
+  getState?: () => { sidebarTabs?: Record<string, string> };
+};
+
+interface BuildViewStateOptions {
+  baseViewState?: PdfViewState | null;
+  scrollCapability?: ScrollCapability | null;
+  zoomCapability?: ZoomCapability | null;
+  spreadCapability?: SpreadCapability | null;
+  rotateCapability?: RotateCapability | null;
+  uiCapability?: ViewerUICapability | null;
+  lastScrollStrategy?: string | null;
+  lastSidebarState?: PdfSidebarState | null;
+  overrides?: Partial<PdfViewState>;
+}
+
+export function getPageCoordinates(
+  metrics: ScrollMetrics | null | undefined,
+  pageNumber: number
+): PdfPageCoordinates | undefined {
   const currentMetric =
     metrics?.pageVisibilityMetrics?.find((item) => item.pageNumber === pageNumber) ||
     metrics?.pageVisibilityMetrics?.[0];
@@ -23,8 +52,8 @@ export function buildViewState({
   lastScrollStrategy,
   lastSidebarState,
   overrides = {},
-}) {
-  const nextViewState = { ...(baseViewState || {}) };
+}: BuildViewStateOptions): PdfViewState {
+  const nextViewState: PdfViewState = { ...(baseViewState || {}) };
 
   if (scrollCapability) {
     const pageNumber = scrollCapability.getCurrentPage();

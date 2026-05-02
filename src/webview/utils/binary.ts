@@ -1,9 +1,4 @@
-/**
- * Converts a base64 string to an ArrayBuffer.
- * @param {string} base64
- * @returns {ArrayBuffer}
- */
-export function base64ToArrayBuffer(base64) {
+export function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary_string = window.atob(base64);
   const len = binary_string.length;
   const bytes = new Uint8Array(len);

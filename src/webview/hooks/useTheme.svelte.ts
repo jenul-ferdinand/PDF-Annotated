@@ -1,9 +1,10 @@
 import { onMount } from "svelte";
+import type { ThemePreference } from "../../types";
 
 export function useTheme() {
   let themePreference = $state(getTheme());
 
-  function getTheme() {
+  function getTheme(): ThemePreference {
     if (typeof document !== "undefined") {
       if (
         document.body.classList.contains("vscode-dark") ||
@@ -15,7 +16,7 @@ export function useTheme() {
     return "light";
   }
 
-  function updateTheme() {
+  function updateTheme(): void {
     const newTheme = getTheme();
     if (themePreference !== newTheme) {
       console.log("[Webview] Theme changed to:", newTheme);

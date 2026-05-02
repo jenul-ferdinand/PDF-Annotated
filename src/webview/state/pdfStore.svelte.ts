@@ -1,21 +1,32 @@
+import type { ExportCapability } from "@embedpdf/plugin-export";
 import { base64ToArrayBuffer } from "../utils/binary.js";
 import { vscodeService } from "../services/vscode.js";
+import type {
+  PdfPreviewMessage,
+  PdfPreviewStateOptions,
+  PdfSaveRequestMessage,
+  PdfSidebarState,
+  PdfStateStore,
+  PdfViewState,
+  ThemePreference,
+  ViewStateSyncOptions,
+} from "../../types";
 
 const DEFAULT_VIEW_STATE = {
   zoomLevel: "fit-width",
   spreadMode: "odd",
   rotation: 0,
   scrollStrategy: "vertical",
-};
+} satisfies Required<Pick<PdfViewState, "zoomLevel" | "spreadMode" | "rotation" | "scrollStrategy">>;
 
-function roundCoordinate(value) {
+function roundCoordinate(value: unknown): number | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return undefined;
   }
   return Math.round(value * 10) / 10;
 }
 
-function normalizeSidebar(sidebar) {
+function normalizeSidebar(sidebar: PdfSidebarState | null | undefined): PdfSidebarState | undefined {
   if (!sidebar?.placement || !sidebar?.slot || !sidebar?.sidebarId) {
     return undefined;
   }
@@ -28,12 +39,12 @@ function normalizeSidebar(sidebar) {
   };
 }
 
-function normalizeViewState(viewState) {
+function normalizeViewState(viewState: PdfViewState | null | undefined): PdfViewState | null {
   if (!viewState) {
     return null;
   }
 
-  const normalized = {};
+  const normalized: PdfViewState = {};
 
   if (typeof viewState.pageNumber === "number" && Number.isFinite(viewState.pageNumber)) {
     normalized.pageNumber = viewState.pageNumber;
@@ -76,11 +87,11 @@ function normalizeViewState(viewState) {
   return Object.keys(normalized).length > 0 ? normalized : null;
 }
 
-function areViewStatesEqual(left, right) {
+function areViewStatesEqual(left: PdfViewState | null | undefined, right: PdfViewState | null | undefined): boolean {
   return JSON.stringify(left || null) === JSON.stringify(right || null);
 }
 
-function getInitialTheme() {
+function getInitialTheme(): ThemePreference {
   if (typeof document !== "undefined") {
     if (
       document.body.classList.contains("vscode-dark") ||
@@ -92,7 +103,7 @@ function getInitialTheme() {
   return "light";
 }
 
-function messageDataToUint8Array(data) {
+function messageDataToUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
   if (data instanceof Uint8Array) {
     return data;
   }
@@ -102,7 +113,13 @@ function messageDataToUint8Array(data) {
   return new Uint8Array(base64ToArrayBuffer(data));
 }
 
-export const pdfState = $state({
+function toBlobArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+}
+
+export const pdfState = $state<PdfStateStore>({
   pdfSrc: null,
   wasmUrl: "",
   loading: true,
@@ -119,7 +136,7 @@ export const pdfState = $state({
   container: null,
   statusReportingEnabled: false,
 
-  reportViewerStatus(status, details = {}) {
+  reportViewerStatus(status: string, details: { message?: string; error?: string } = {}) {
     if (!this.statusReportingEnabled) {
       return;
     }
@@ -127,7 +144,7 @@ export const pdfState = $state({
     vscodeService.postMessage({
       command: "viewer-status",
       status,
-      documentKey: this.currentDocumentKey,
+      documentKey: this.currentDocumentKey ?? undefined,
       ...details,
     });
   },
@@ -139,7 +156,7 @@ export const pdfState = $state({
     }
   },
 
-  syncViewState(viewState, options = {}) {
+  syncViewState(viewState: PdfViewState | null | undefined, options: ViewStateSyncOptions = {}) {
     const { notifyExtension = true, flush = false, persistLocally = true } = options;
     const nextViewState = normalizeViewState(viewState);
     const viewStateChanged = !areViewStatesEqual(this.persistedViewState, nextViewState);
@@ -169,14 +186,14 @@ export const pdfState = $state({
     if (notifyExtension && (viewStateChanged || flush)) {
       vscodeService.postMessage({
         command: "viewer-state-changed",
-        documentKey: this.currentDocumentKey,
+        documentKey: this.currentDocumentKey ?? undefined,
         viewState: nextViewState,
         flush,
       });
     }
   },
 
-  setPreview(message, options = {}) {
+  setPreview(message: PdfPreviewMessage, options: PdfPreviewStateOptions = {}) {
     const { forceReload = false } = options;
     const newDocUri = message.pdfUri || "base64-data";
     const newDocKey = message.documentKey || newDocUri;
@@ -189,7 +206,7 @@ export const pdfState = $state({
       if (!this.activeWasmBlobUrl) {
         const wasmBuffer = messageDataToUint8Array(message.wasmData);
         this.activeWasmBlobUrl = URL.createObjectURL(
-          new Blob([wasmBuffer], { type: "application/wasm" })
+          new Blob([toBlobArrayBuffer(wasmBuffer)], { type: "application/wasm" })
         );
       }
       this.wasmUrl = this.activeWasmBlobUrl;
@@ -217,7 +234,7 @@ export const pdfState = $state({
       if (this.activeBlobUrl) {
         URL.revokeObjectURL(this.activeBlobUrl);
       }
-      const blob = new Blob([buffer], { type: "application/pdf" });
+      const blob = new Blob([toBlobArrayBuffer(buffer)], { type: "application/pdf" });
       src = URL.createObjectURL(blob);
       this.activeBlobUrl = src;
     }
@@ -254,13 +271,13 @@ export const pdfState = $state({
     }
   },
 
-  async handleSave(message) {
+  async handleSave(message: PdfSaveRequestMessage) {
     try {
       if (!this.registry) {
         throw new Error("PDF viewer is not ready to save yet.");
       }
 
-      const exportPlugin = this.registry.getPlugin("export")?.provides();
+      const exportPlugin = this.registry.getPlugin("export")?.provides?.() as ExportCapability | undefined;
       if (!exportPlugin) {
         throw new Error("Export plugin is unavailable.");
       }
@@ -272,9 +289,10 @@ export const pdfState = $state({
         requestId: message.requestId,
       });
     } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
       vscodeService.postMessage({
         command: "error",
-        error: e?.message || String(e),
+        error: error.message,
         requestId: message.requestId,
       });
     }

@@ -1,6 +1,6 @@
-const assert = require("assert");
-const path = require("path");
-const vscode = require("vscode");
+import assert from "node:assert";
+import path from "node:path";
+import * as vscode from "vscode";
 
 const EXTENSION_ID = "jenul-ferdinand.pdf-annotated";
 const VIEW_TYPE = "pdfAnnotated.PDFEdit";
@@ -8,22 +8,32 @@ const STATUS_COMMAND = "pdfAnnotated.test.getLastViewerStatus";
 const LOAD_TIMEOUT_MS = Number(process.env.PDF_ANNOTATED_LOAD_TIMEOUT_MS || 20000);
 const POLL_INTERVAL_MS = 250;
 
-function delay(ms) {
+interface ViewerStatus {
+  status: string;
+  documentUri: string;
+  documentKey: string | null;
+  message: string | null;
+  updatedAt: string;
+}
+
+type ViewerStatusResult = string | ViewerStatus | null | undefined;
+
+function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getExtension() {
+function getExtension(): vscode.Extension<unknown> | undefined {
   return (
     vscode.extensions.getExtension(EXTENSION_ID) ||
     vscode.extensions.all.find((extension) => extension.packageJSON?.name === "pdf-annotated")
   );
 }
 
-function statusName(viewerStatus) {
+function statusName(viewerStatus: ViewerStatusResult): string | undefined {
   return typeof viewerStatus === "string" ? viewerStatus : viewerStatus?.status;
 }
 
-function describeStatus(viewerStatus) {
+function describeStatus(viewerStatus: ViewerStatusResult): string {
   if (!viewerStatus) {
     return "none";
   }
@@ -35,17 +45,17 @@ function describeStatus(viewerStatus) {
   return JSON.stringify(viewerStatus);
 }
 
-async function waitForLoaded(uri) {
+async function waitForLoaded(uri: vscode.Uri): Promise<ViewerStatusResult> {
   const deadline = Date.now() + LOAD_TIMEOUT_MS;
-  let lastStatus = null;
-  let lastCommandError = null;
+  let lastStatus: ViewerStatusResult = null;
+  let lastCommandError: Error | null = null;
 
   while (Date.now() < deadline) {
     try {
-      lastStatus = await vscode.commands.executeCommand(STATUS_COMMAND, uri.toString());
+      lastStatus = await vscode.commands.executeCommand<ViewerStatusResult>(STATUS_COMMAND, uri.toString());
       lastCommandError = null;
     } catch (error) {
-      lastCommandError = error;
+      lastCommandError = error instanceof Error ? error : new Error(String(error));
     }
 
     const name = statusName(lastStatus);
@@ -69,13 +79,14 @@ async function waitForLoaded(uri) {
   );
 }
 
-async function testPdfViewerLoadsFixture() {
+async function testPdfViewerLoadsFixture(): Promise<void> {
   const extension = getExtension();
   assert.ok(extension, `Expected extension ${EXTENSION_ID} to be available`);
   await extension.activate();
 
+  const fixturesRoot = process.env.PDF_ANNOTATED_TEST_FIXTURES || path.resolve(__dirname, "..", "fixtures");
   const fixtureUri = vscode.Uri.file(
-    path.resolve(__dirname, "..", "fixtures", "pdf-sample.pdf")
+    path.resolve(fixturesRoot, "pdf-sample.pdf")
   );
   await vscode.workspace.fs.stat(fixtureUri);
 
@@ -88,8 +99,8 @@ async function testPdfViewerLoadsFixture() {
   }
 }
 
-exports.run = async function run() {
+export async function run(): Promise<void> {
   console.log("Running PDF Annotated desktop integration tests");
   await testPdfViewerLoadsFixture();
   console.log("PDF Annotated desktop integration tests passed");
-};
+}

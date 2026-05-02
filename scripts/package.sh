@@ -5,10 +5,6 @@ set -e
 
 echo "📦 Starting extension packaging process..."
 
-# Ensure fresh build
-echo "🏗️ Running build..."
-bun run build
-
 # Create VSIX
 echo "📦 Creating VSIX package..."
 # Uses @vscode/vsce from devDependencies

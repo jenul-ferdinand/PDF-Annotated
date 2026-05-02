@@ -1,29 +1,30 @@
+import type * as vscode from "vscode";
 import Logger from "../services/logger";
 import { activeEditors } from "./editorManager";
+import type { PdfViewState } from "../types";
 
 const VIEW_STATE_STORAGE_PREFIX = "pdfAnnotated.viewState:";
 const VIEW_STATE_CHECKPOINT_DELAY = 1500;
-const viewStateMemoryCache = new Map();
-const viewStateCheckpointTimers = new Map();
-const lastCheckpointedViewStateCache = new Map();
+const viewStateMemoryCache = new Map<string, PdfViewState | null>();
+const viewStateCheckpointTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const lastCheckpointedViewStateCache = new Map<string, PdfViewState | null>();
 
-function areViewStatesEqual(left, right) {
+function areViewStatesEqual(left: PdfViewState | null | undefined, right: PdfViewState | null | undefined): boolean {
   return JSON.stringify(left || null) === JSON.stringify(right || null);
 }
 
 export class ViewStateManager {
-  /**
-   * @param {import("vscode").ExtensionContext} context
-   */
-  constructor(context) {
+  private readonly context: vscode.ExtensionContext;
+
+  constructor(context: vscode.ExtensionContext) {
     this.context = context;
   }
 
-  #getViewStateKey(uriString) {
+  #getViewStateKey(uriString: string): string {
     return `${VIEW_STATE_STORAGE_PREFIX}${uriString}`;
   }
 
-  #clearCheckpointTimer(uriString) {
+  #clearCheckpointTimer(uriString: string): void {
     const existingTimer = viewStateCheckpointTimers.get(uriString);
     if (existingTimer) {
       clearTimeout(existingTimer);
@@ -31,21 +32,21 @@ export class ViewStateManager {
     }
   }
 
-  getPersisted(uriString) {
+  getPersisted(uriString: string): PdfViewState | null {
     if (!uriString || uriString === "unknown-uri") {
       return null;
     }
 
     if (viewStateMemoryCache.has(uriString)) {
-      return viewStateMemoryCache.get(uriString);
+      return viewStateMemoryCache.get(uriString) ?? null;
     }
 
-    const persistedViewState = this.context.workspaceState.get(this.#getViewStateKey(uriString), null);
+    const persistedViewState = this.context.workspaceState.get<PdfViewState | null>(this.#getViewStateKey(uriString), null) ?? null;
     lastCheckpointedViewStateCache.set(uriString, persistedViewState);
     return persistedViewState;
   }
 
-  updateHot(uriString, viewState) {
+  updateHot(uriString: string, viewState: PdfViewState | null | undefined): void {
     if (!uriString || uriString === "unknown-uri") {
       return;
     }
@@ -59,7 +60,7 @@ export class ViewStateManager {
     }
   }
 
-  async flush(uriString) {
+  async flush(uriString: string): Promise<void> {
     if (!uriString || uriString === "unknown-uri") {
       return;
     }
@@ -77,7 +78,7 @@ export class ViewStateManager {
     lastCheckpointedViewStateCache.set(uriString, normalizedViewState);
   }
 
-  scheduleCheckpoint(uriString) {
+  scheduleCheckpoint(uriString: string): void {
     if (!uriString || uriString === "unknown-uri") {
       return;
     }
@@ -92,7 +93,7 @@ export class ViewStateManager {
     );
   }
 
-  clearTimer(uriString) {
+  clearTimer(uriString: string): void {
     if (!uriString || uriString === "unknown-uri") {
       return;
     }
@@ -100,7 +101,7 @@ export class ViewStateManager {
     this.#clearCheckpointTimer(uriString);
   }
 
-  disposeUri(uriString) {
+  disposeUri(uriString: string): void {
     if (!uriString || uriString === "unknown-uri") {
       return;
     }

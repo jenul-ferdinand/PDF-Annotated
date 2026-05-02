@@ -1,15 +1,12 @@
-const vscode = require("vscode");
+import type * as vscode from "vscode";
 
-/**
- * Generates the HTML for the PDF webview.
- * @param {import("vscode").Webview} webview
- * @param {string} htmlContent
- * @param {import("vscode").Uri} webviewBundleUri
- * @param {import("vscode").Uri} mediaUri
- * @param {import("vscode").Uri} wasmUri
- * @returns {string}
- */
-export function getWebviewHtml(webview, htmlContent, webviewBundleUri, mediaUri, wasmUri) {
+export function getWebviewHtml(
+  webview: vscode.Webview,
+  htmlContent: string,
+  webviewBundleUri: vscode.Uri,
+  mediaUri: vscode.Uri,
+  wasmUri: vscode.Uri
+): string {
   return htmlContent
     .replace(/{{CSP_SOURCE}}/g, webview.cspSource)
     .replace(/{{WEBVIEW_BUNDLE_URI}}/g, webviewBundleUri.toString())
@@ -17,16 +14,13 @@ export function getWebviewHtml(webview, htmlContent, webviewBundleUri, mediaUri,
     .replace(/{{WASM_URI}}/g, wasmUri.toString());
 }
 
-/**
- * Generates an error HTML page.
- * @param {string} errorType
- * @param {string} errorMessage
- * @param {string} suggestion
- * @param {boolean} canRetry
- * @param {number} duration
- * @returns {string}
- */
-export function getErrorHtml(errorType, errorMessage, suggestion, canRetry, duration) {
+export function getErrorHtml(
+  errorType: string,
+  errorMessage: string,
+  suggestion: string,
+  canRetry: boolean,
+  duration: number
+): string {
   return `
     <!DOCTYPE html>
     <html>
