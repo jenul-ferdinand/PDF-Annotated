@@ -16,7 +16,7 @@
   "repository": {
     "url": "https://github.com/jenul-ferdinand/PDF-Annotated"
   },
-  "version": "0.1.0",
+  "version": "0.1.2",
   "browser": "./dist/extension.browser.js",
   "main": "./dist/extension.node.js",
   "extensionKind": [

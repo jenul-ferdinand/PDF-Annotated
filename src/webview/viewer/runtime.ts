@@ -61,6 +61,42 @@ export function createViewerRuntime({ pdfState, vscodeService }: ViewerRuntimeOp
   let uiCapability: ViewerUICapability | null = null;
   let annotationCapability: AnnotationCapability | null = null;
 
+  function focusSearchInput(): void {
+    // EmbedPDF renders inside <embedpdf-container>'s open shadow root, so
+    // light-DOM querySelector misses it. Walk into the shadow root, then retry
+    // across a few frames because the panel mounts after onSidebarChanged fires.
+    const MAX_ATTEMPTS = 30; // ~500ms at 60fps
+    let attempts = 0;
+
+    const findInput = (): HTMLInputElement | null => {
+      const host = document.querySelector("embedpdf-container") as
+        | (Element & { shadowRoot: ShadowRoot | null })
+        | null;
+      const root: ParentNode = host?.shadowRoot ?? document;
+      return (
+        root.querySelector<HTMLInputElement>('#search-panel input') ||
+        root.querySelector<HTMLInputElement>('[id="search-panel"] input') ||
+        root.querySelector<HTMLInputElement>('input[placeholder="Search"]') ||
+        // Last resort: any text input that's currently visible inside the shadow root
+        root.querySelector<HTMLInputElement>('input[type="text"]')
+      );
+    };
+
+    const tryFocus = () => {
+      attempts += 1;
+      const input = findInput();
+      if (input) {
+        input.focus();
+        input.select();
+        return;
+      }
+      if (attempts < MAX_ATTEMPTS) {
+        requestAnimationFrame(tryFocus);
+      }
+    };
+    requestAnimationFrame(tryFocus);
+  }
+
   function clearTimers() {
     clearTimeout(extensionSyncTimeout);
     clearTimeout(checkpointSyncTimeout);
@@ -357,6 +393,13 @@ export function createViewerRuntime({ pdfState, vscodeService }: ViewerRuntimeOp
             },
             { immediate: true }
           );
+
+          // EmbedPDF opens the search panel without focusing its input.
+          // After the panel mounts, locate its input and focus it so the user
+          // can type immediately (matches Ctrl+F expectation in any other app).
+          if (event.sidebarId === "search-panel") {
+            focusSearchInput();
+          }
         })
       );
     }
